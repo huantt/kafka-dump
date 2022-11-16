@@ -1,0 +1,7 @@
+.idea/
+volumes/
+vendor/
+out/
+.env
+.init.env
+.DS_Store
