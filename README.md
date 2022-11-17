@@ -14,6 +14,26 @@ go install github.com/huantt/kafka-dump@latest
 export PATH=$PATH:$(go env GOPATH)/bin
 ```
 ### Export Kafka topics to parquet file
+#### Options
+```shell
+Usage:
+   export [flags]
+
+Flags:
+  -f, --file string                      Output file path (required)
+  -h, --help                             help for export
+      --kafka-group-id string            Kafka consumer group ID
+      --kafka-password string            Kafka password
+      --kafka-sasl-mechanism string      Kafka password
+      --kafka-security-protocol string   Kafka security protocol
+      --kafka-servers string             Kafka servers string
+      --kafka-topics stringArray         Kafka topics
+      --kafka-username string            Kafka username
+      --limit uint                       Supports file splitting. Files are split by the number of messages specified
+Global Flags:
+  --log-level string   Log level (default "info")
+```
+#### Sample
 ```shell
 kafka-dump export \
 --file=path/to/output/data.parquet \
@@ -26,12 +46,24 @@ kafka-dump export \
 --kafka-sasl-mechanism=PLAIN
 ```
 
-### Count number of rows in parquet file
-```shell
-kafka-dump count-parquet-rows \
---file=path/to/output/data.parquet
-```
 ### Import Kafka topics from parquet file
+```shell
+Usage:
+   import [flags]
+
+Flags:
+  -f, --file string                      Output file path (required)
+  -h, --help                             help for import
+      --kafka-password string            Kafka password
+      --kafka-sasl-mechanism string      Kafka password
+      --kafka-security-protocol string   Kafka security protocol
+      --kafka-servers string             Kafka servers string
+      --kafka-username string            Kafka username
+
+Global Flags:
+      --log-level string   Log level (default "info")
+```
+#### Sample
 ```shell
 kafka-dump import \
 --file=path/to/input/data.parquet \
@@ -40,6 +72,24 @@ kafka-dump import \
 --kafka-password=admin \
 --kafka-security-protocol=SASL_SSL \
 --kafka-sasl-mechanism=PLAIN
+```
+
+### Count number of rows in parquet file
+```shell
+Usage:
+   count-parquet-rows [flags]
+
+Flags:
+  -f, --file string   File path (required)
+  -h, --help          help for count-parquet-rows
+
+Global Flags:
+      --log-level string   Log level (default "info")
+```
+#### Sample
+```shell
+kafka-dump count-parquet-rows \
+--file=path/to/output/data.parquet
 ```
 
 # Use Docker
