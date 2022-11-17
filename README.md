@@ -42,12 +42,12 @@ kafka-dump import \
 --kafka-sasl-mechanism=PLAIN
 ```
 
-# Use Docker
+## Use Docker
 ```shell
 docker run -d --rm \
 -v /local-data:/data \
 huanttok/kafka-dump:latest \
-kafka-dump export \
+./kafka-dump export \
 --file=/data/path/to/output/data.parquet \
 --kafka-topics=users-activities \
 --kafka-group-id=id=kafka-dump.local \
@@ -57,3 +57,7 @@ kafka-dump export \
 --kafka-security-protocol=SASL_SSL \
 --kafka-sasl-mechanism=PLAIN
 ```
+
+## TODO
+- Improve exporting speed by reducing number of commit times
+- Export topic partitions in parallel
