@@ -2,7 +2,6 @@ package impl
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/pkg/errors"
 	"github.com/xitongsys/parquet-go-source/local"
@@ -47,7 +46,6 @@ func (p *ParquetReader) Read() chan kafka.Message {
 
 			for _, parquetMessage := range parquetMessages {
 				counter++
-				fmt.Println(counter)
 				message, err := toKafkaMessage(parquetMessage)
 				if err != nil {
 					err = errors.Wrapf(err, "Failed to parse kafka message from parquet message")
@@ -78,6 +76,7 @@ func toKafkaMessage(message ParquetMessage) (*kafka.Message, error) {
 		TopicPartition: kafka.TopicPartition{
 			Topic: &message.Topic,
 		},
+		Key:     []byte(message.Key),
 		Headers: headers,
 	}, nil
 }
