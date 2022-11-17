@@ -7,17 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 type Exporter struct {
 	consumer *kafka.Consumer
 	topics   []string
 	writer   Writer
-}
-
-type Writer interface {
-	Write(msg kafka.Message) error
-	Flush() error
 }
 
 func NewExporter(consumer *kafka.Consumer, topics []string, writer Writer) (*Exporter, error) {
@@ -27,6 +23,13 @@ func NewExporter(consumer *kafka.Consumer, topics []string, writer Writer) (*Exp
 		writer:   writer,
 	}, nil
 }
+
+type Writer interface {
+	Write(msg kafka.Message) error
+	Flush() error
+}
+
+const maxWaitingTimeForNewMessage = time.Duration(10) * time.Second
 
 func (e *Exporter) Run() (err error) {
 	err = e.consumer.SubscribeTopics(e.topics, nil)
@@ -51,8 +54,11 @@ func (e *Exporter) Run() (err error) {
 		}
 	}()
 	for {
-		msg, err := e.consumer.ReadMessage(-1)
+		msg, err := e.consumer.ReadMessage(maxWaitingTimeForNewMessage)
 		if err != nil {
+			if kafkaErr, ok := err.(kafka.Error); ok && kafkaErr.Code() == kafka.ErrTimedOut {
+				log.Infof("Waited for %s but no messages any more! Finish!", maxWaitingTimeForNewMessage)
+			}
 			return err
 		}
 		log.Debugf("Received message: %s", string(msg.Value))
