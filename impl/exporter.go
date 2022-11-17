@@ -53,6 +53,7 @@ func (e *Exporter) Run() (err error) {
 			panic(err)
 		}
 	}()
+	counter := 0
 	for {
 		msg, err := e.consumer.ReadMessage(maxWaitingTimeForNewMessage)
 		if err != nil {
@@ -61,7 +62,6 @@ func (e *Exporter) Run() (err error) {
 			}
 			return err
 		}
-		log.Debugf("Received message: %s", string(msg.Value))
 		err = e.writer.Write(*msg)
 		if err != nil {
 			return err
@@ -70,6 +70,8 @@ func (e *Exporter) Run() (err error) {
 		if err != nil {
 			return errors.Wrap(err, "Failed to commit messages")
 		}
+		counter++
+		log.Infof("Exported message: %v (Total: %d)", msg.TopicPartition, counter)
 	}
 }
 

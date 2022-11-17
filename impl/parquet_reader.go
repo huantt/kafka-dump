@@ -3,6 +3,7 @@ package impl
 import (
 	"encoding/json"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
@@ -52,6 +53,7 @@ func (p *ParquetReader) Read() chan kafka.Message {
 					panic(err)
 				}
 				ch <- *message
+				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
 			}
 		}
 		p.parquetReader.ReadStop()
@@ -61,6 +63,10 @@ func (p *ParquetReader) Read() chan kafka.Message {
 		}
 	}()
 	return ch
+}
+
+func (p *ParquetReader) GetNumberOfRows() int64 {
+	return p.parquetReader.GetNumRows()
 }
 
 func toKafkaMessage(message ParquetMessage) (*kafka.Message, error) {
