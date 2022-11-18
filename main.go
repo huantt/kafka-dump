@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -52,10 +53,12 @@ func run(args []string) error {
 
 	// Init export command
 	var exportLimitPerFile uint64
+	var maxWaitingSecondsForNewMessage int
+	var concurrentConsumers = 1
 	exportCmd := cobra.Command{
 		Use: "export",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Infof("Limit: %d", exportLimitPerFile)
+			log.Infof("Limit: %d - Concurrent consumers: %d", exportLimitPerFile, concurrentConsumers)
 			kafkaConsumerConfig := kafka_utils.Config{
 				BootstrapServers: kafkaServers,
 				SecurityProtocol: kafkaSecurityProtocol,
@@ -68,38 +71,45 @@ func run(args []string) error {
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init consumer"))
 			}
-			var options *impl.Options
-			if exportLimitPerFile > 0 {
-				options = &impl.Options{
-					Limit: exportLimitPerFile,
-				}
+			maxWaitingTimeForNewMessage := time.Duration(maxWaitingSecondsForNewMessage) * time.Second
+			options := &impl.Options{
+				Limit:                       exportLimitPerFile,
+				MaxWaitingTimeForNewMessage: &maxWaitingTimeForNewMessage,
 			}
 
-			for true {
-				outputFilePath := filePath
-				if exportLimitPerFile > 0 {
-					outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().Unix())
-				}
-				log.Infof("Exporting to: %s", outputFilePath)
-				parquetWriter, err := impl.NewParquetWriter(outputFilePath)
-				if err != nil {
-					panic(errors.Wrap(err, "Unable to init parquet file writer"))
-				}
-				exporter, err := impl.NewExporter(consumer, *topics, parquetWriter, options)
-				if err != nil {
-					panic(errors.Wrap(err, "Failed to init exporter"))
-				}
+			var wg sync.WaitGroup
+			wg.Add(concurrentConsumers)
+			for i := 0; i < concurrentConsumers; i++ {
+				go func(workerID int) {
+					defer wg.Done()
+					for true {
+						outputFilePath := filePath
+						if exportLimitPerFile > 0 {
+							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
+						}
+						log.Infof("[Worker-%d] Exporting to: %s", workerID, outputFilePath)
+						parquetWriter, err := impl.NewParquetWriter(outputFilePath)
+						if err != nil {
+							panic(errors.Wrap(err, "Unable to init parquet file writer"))
+						}
+						exporter, err := impl.NewExporter(consumer, *topics, parquetWriter, options)
+						if err != nil {
+							panic(errors.Wrap(err, "Failed to init exporter"))
+						}
 
-				exportedCount, err := exporter.Run()
-				if err != nil {
-					panic(errors.Wrap(err, "Error while running exporter"))
-				}
-				log.Infof("Exported %d messages", exportedCount)
-				if exportLimitPerFile == 0 || exportedCount < exportLimitPerFile {
-					log.Infof("Finished!")
-					return
-				}
+						exportedCount, err := exporter.Run()
+						if err != nil {
+							panic(errors.Wrap(err, "Error while running exporter"))
+						}
+						log.Infof("[Worker-%d] Exported %d messages", workerID, exportedCount)
+						if exportLimitPerFile == 0 || exportedCount < exportLimitPerFile {
+							log.Infof("[Worker-%d] Finished!", workerID)
+							return
+						}
+					}
+				}(i)
 			}
+			wg.Wait()
 		},
 	}
 	exportCmd.Flags().StringVarP(&filePath, "file", "f", "", "Output file path (required)")
@@ -110,6 +120,8 @@ func run(args []string) error {
 	exportCmd.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	exportCmd.Flags().StringVar(&kafkaGroupID, "kafka-group-id", "", "Kafka consumer group ID")
 	exportCmd.Flags().Uint64Var(&exportLimitPerFile, "limit", 0, "Supports file splitting. Files are split by the number of messages specified")
+	exportCmd.Flags().IntVar(&maxWaitingSecondsForNewMessage, "max-waiting-seconds-for-new-message", 30, "Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever.")
+	exportCmd.Flags().IntVar(&concurrentConsumers, "concurrent-consumers", 1, "Number of concurrent consumers")
 	topics = exportCmd.Flags().StringArray("kafka-topics", nil, "Kafka topics")
 	exportCmd.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
 	err = exportCmd.MarkFlagRequired("file")

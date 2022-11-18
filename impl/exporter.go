@@ -27,7 +27,8 @@ func NewExporter(consumer *kafka.Consumer, topics []string, writer Writer, optio
 }
 
 type Options struct {
-	Limit uint64
+	Limit                       uint64
+	MaxWaitingTimeForNewMessage *time.Duration
 }
 
 type Writer interface {
@@ -35,7 +36,7 @@ type Writer interface {
 	Flush() error
 }
 
-const maxWaitingTimeForNewMessage = time.Duration(10) * time.Second
+const defaultMaxWaitingTimeForNewMessage = time.Duration(30) * time.Second
 
 func (e *Exporter) Run() (exportedCount uint64, err error) {
 	err = e.consumer.SubscribeTopics(e.topics, nil)
@@ -59,6 +60,10 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 			panic(err)
 		}
 	}()
+	maxWaitingTimeForNewMessage := defaultMaxWaitingTimeForNewMessage
+	if e.options.MaxWaitingTimeForNewMessage != nil {
+		maxWaitingTimeForNewMessage = *e.options.MaxWaitingTimeForNewMessage
+	}
 	for {
 		msg, err := e.consumer.ReadMessage(maxWaitingTimeForNewMessage)
 		if err != nil {

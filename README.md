@@ -20,16 +20,19 @@ Usage:
    export [flags]
 
 Flags:
-  -f, --file string                      Output file path (required)
-  -h, --help                             help for export
-      --kafka-group-id string            Kafka consumer group ID
-      --kafka-password string            Kafka password
-      --kafka-sasl-mechanism string      Kafka password
-      --kafka-security-protocol string   Kafka security protocol
-      --kafka-servers string             Kafka servers string
-      --kafka-topics stringArray         Kafka topics
-      --kafka-username string            Kafka username
-      --limit uint                       Supports file splitting. Files are split by the number of messages specified
+  -f, --file string                                Output file path (required)
+  -h, --help                                       help for export
+      --concurrent-consumers int                   Number of concurrent consumers (default 1)
+      --kafka-group-id string                      Kafka consumer group ID
+      --kafka-password string                      Kafka password
+      --kafka-sasl-mechanism string                Kafka password
+      --kafka-security-protocol string             Kafka security protocol
+      --kafka-servers string                       Kafka servers string
+      --kafka-topics stringArray                   Kafka topics
+      --kafka-username string                      Kafka username
+      --limit uint                                 Supports file splitting. Files are split by the number of messages specified
+      --max-waiting-seconds-for-new-message uint   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
+
 Global Flags:
   --log-level string   Log level (default "info")
 ```
