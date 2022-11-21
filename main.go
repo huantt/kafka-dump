@@ -183,7 +183,88 @@ func run(args []string) error {
 	importCmd.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
 	importCmd.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	importCmd.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
-	err = importCmd.MarkFlagRequired("file")
+	if err != nil {
+		return err
+	}
+
+	// Init stream command
+	var topicFrom string
+	var topicTo string
+	streamCmd := cobra.Command{
+		Use: "stream",
+		Run: func(cmd *cobra.Command, args []string) {
+			//TODO: Separate consumer & producer config
+			kafkaConsumerConfig := kafka_utils.Config{
+				BootstrapServers: kafkaServers,
+				SecurityProtocol: kafkaSecurityProtocol,
+				SASLMechanism:    kafkaSASKMechanism,
+				SASLUsername:     kafkaUsername,
+				SASLPassword:     kafkaPassword,
+				GroupId:          kafkaGroupID,
+			}
+			consumer, err := kafka_utils.NewConsumer(kafkaConsumerConfig)
+			if err != nil {
+				panic(err)
+			}
+			kafkaProducerConfig := kafka_utils.Config{
+				BootstrapServers: kafkaServers,
+				SecurityProtocol: kafkaSecurityProtocol,
+				SASLMechanism:    kafkaSASKMechanism,
+				SASLUsername:     kafkaUsername,
+				SASLPassword:     kafkaPassword,
+			}
+			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
+			if err != nil {
+				panic(err)
+			}
+			queueBufferingMaxMessages := kafka_utils.DefaultQueueBufferingMaxMessages
+			if kafkaProducerConfig.QueueBufferingMaxMessages > 0 {
+				queueBufferingMaxMessages = kafkaProducerConfig.QueueBufferingMaxMessages
+			}
+			deliveryChan := make(chan kafka.Event, queueBufferingMaxMessages)
+			go func() { // Tricky: kafka require specific deliveryChan to use Flush function
+				for e := range deliveryChan {
+					m := e.(*kafka.Message)
+					if m.TopicPartition.Error != nil {
+						panic(fmt.Sprintf("Failed to deliver message: %v\n", m.TopicPartition))
+					} else {
+						log.Debugf("Successfully produced record to topic %s partition [%d] @ offset %v\n",
+							*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
+					}
+				}
+			}()
+			maxWaitingSecondsForNewMessage := time.Duration(10) * time.Second
+			streamer := impl.NewStreamer(
+				consumer,
+				producer,
+				topicFrom,
+				topicTo,
+				deliveryChan,
+				impl.StreamerOptions{MaxWaitingTimeForNewMessage: &maxWaitingSecondsForNewMessage},
+			)
+			transferredCount, err := streamer.Run()
+			if err != nil {
+				panic(err)
+			}
+			log.Infof("Transferred %d messages from %s to %s", transferredCount, topicFrom, topicTo)
+		},
+	}
+	streamCmd.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
+	streamCmd.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
+	streamCmd.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
+	streamCmd.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
+	streamCmd.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
+	streamCmd.Flags().StringVar(&kafkaGroupID, "kafka-group-id", "", "Kafka consumer group ID")
+	streamCmd.Flags().StringVar(&topicFrom, "topic-from", "", "Source topic")
+	streamCmd.Flags().StringVar(&topicTo, "topic-to", "", "Destination topic")
+	streamCmd.Flags().IntVar(&maxWaitingSecondsForNewMessage, "max-waiting-seconds-for-new-message", 30, "Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever.")
+	streamCmd.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
+
+	err = streamCmd.MarkFlagRequired("topic-from")
+	if err != nil {
+		return err
+	}
+	err = streamCmd.MarkFlagRequired("topic-to")
 	if err != nil {
 		return err
 	}
@@ -192,6 +273,7 @@ func run(args []string) error {
 		&exportCmd,
 		&importCmd,
 		&countParquetNumberOfRowsCmd,
+		&streamCmd,
 	)
 
 	return rootCmd.Execute()

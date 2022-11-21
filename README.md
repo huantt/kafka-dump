@@ -77,6 +77,38 @@ kafka-dump import \
 --kafka-sasl-mechanism=PLAIN
 ```
 
+### Stream messages topic to topic
+```shell
+Flags:
+  -h, --help                                      help for stream
+      --kafka-group-id string                     Kafka consumer group ID
+      --kafka-password string                     Kafka password
+      --kafka-sasl-mechanism string               Kafka password
+      --kafka-security-protocol string            Kafka security protocol
+      --kafka-servers string                      Kafka servers string
+      --kafka-username string                     Kafka username
+      --max-waiting-seconds-for-new-message int   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
+      --topic-from string                         Source topic
+      --topic-to string                           Destination topic
+
+Global Flags:
+      --log-level string   Log level (default "info")
+
+```
+
+#### Sample
+```shell
+kafka-dump stream \
+--topic-from=users \
+--topic-to=new-users \
+--kafka-group-id=stream \
+--kafka-servers=localhost:9092 \
+--kafka-username=admin \
+--kafka-password=admin \
+--kafka-security-protocol=SASL_SSL \
+--kafka-sasl-mechanism=PLAIN
+```
+
 ### Count number of rows in parquet file
 ```shell
 Usage:
