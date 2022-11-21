@@ -14,14 +14,21 @@ type Exporter struct {
 	consumer *kafka.Consumer
 	topics   []string
 	writer   Writer
+	options  *Options
 }
 
-func NewExporter(consumer *kafka.Consumer, topics []string, writer Writer) (*Exporter, error) {
+func NewExporter(consumer *kafka.Consumer, topics []string, writer Writer, options *Options) (*Exporter, error) {
 	return &Exporter{
 		consumer: consumer,
 		topics:   topics,
 		writer:   writer,
+		options:  options,
 	}, nil
+}
+
+type Options struct {
+	Limit                       uint64
+	MaxWaitingTimeForNewMessage *time.Duration
 }
 
 type Writer interface {
@@ -29,12 +36,12 @@ type Writer interface {
 	Flush() error
 }
 
-const maxWaitingTimeForNewMessage = time.Duration(10) * time.Second
+const defaultMaxWaitingTimeForNewMessage = time.Duration(30) * time.Second
 
-func (e *Exporter) Run() (err error) {
+func (e *Exporter) Run() (exportedCount uint64, err error) {
 	err = e.consumer.SubscribeTopics(e.topics, nil)
 	if err != nil {
-		return err
+		return
 	}
 	log.Infof("Subscribed topics: %s", e.topics)
 	cx := make(chan os.Signal, 1)
@@ -53,25 +60,33 @@ func (e *Exporter) Run() (err error) {
 			panic(err)
 		}
 	}()
-	counter := 0
+	maxWaitingTimeForNewMessage := defaultMaxWaitingTimeForNewMessage
+	if e.options.MaxWaitingTimeForNewMessage != nil {
+		maxWaitingTimeForNewMessage = *e.options.MaxWaitingTimeForNewMessage
+	}
 	for {
 		msg, err := e.consumer.ReadMessage(maxWaitingTimeForNewMessage)
 		if err != nil {
 			if kafkaErr, ok := err.(kafka.Error); ok && kafkaErr.Code() == kafka.ErrTimedOut {
 				log.Infof("Waited for %s but no messages any more! Finish!", maxWaitingTimeForNewMessage)
 			}
-			return err
+			return exportedCount, err
 		}
 		err = e.writer.Write(*msg)
 		if err != nil {
-			return err
+			return exportedCount, err
 		}
 		_, err = e.consumer.Commit()
 		if err != nil {
-			return errors.Wrap(err, "Failed to commit messages")
+			err = errors.Wrap(err, "Failed to commit messages")
+			return exportedCount, err
 		}
-		counter++
-		log.Infof("Exported message: %v (Total: %d)", msg.TopicPartition, counter)
+		exportedCount++
+		log.Infof("Exported message: %v (Total: %d)", msg.TopicPartition, exportedCount)
+		if e.options != nil && exportedCount == e.options.Limit {
+			log.Infof("Reached limit %d - Finish!", e.options.Limit)
+			return exportedCount, err
+		}
 	}
 }
 
