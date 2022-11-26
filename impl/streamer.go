@@ -80,6 +80,10 @@ func (s *Streamer) Run() (transferredCount int64, err error) {
 		if err != nil {
 			return transferredCount, errors.Wrapf(err, "Failed to produce message: %s", string(msg.Value))
 		}
+		_, err = s.consumer.Commit()
+		if err != nil {
+			return transferredCount, errors.Wrapf(err, "Failed to commit message: %s", string(msg.Value))
+		}
 		transferredCount++
 		log.Infof("Transferred %d messages", transferredCount)
 	}
