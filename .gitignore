@@ -5,3 +5,4 @@ out/
 .env
 .init.env
 .DS_Store
+google-credentials.json

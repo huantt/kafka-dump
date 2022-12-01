@@ -20,25 +20,30 @@ Usage:
    export [flags]
 
 Flags:
-  -f, --file string                                Output file path (required)
-  -h, --help                                       help for export
-      --concurrent-consumers int                   Number of concurrent consumers (default 1)
-      --kafka-group-id string                      Kafka consumer group ID
-      --kafka-password string                      Kafka password
-      --kafka-sasl-mechanism string                Kafka password
-      --kafka-security-protocol string             Kafka security protocol
-      --kafka-servers string                       Kafka servers string
-      --kafka-topics stringArray                   Kafka topics
-      --kafka-username string                      Kafka username
-      --limit uint                                 Supports file splitting. Files are split by the number of messages specified
-      --max-waiting-seconds-for-new-message uint   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
+      --concurrent-consumers int                  Number of concurrent consumers (default 1)
+  -f, --file string                               Output file path (required)
+      --gcs-bucket string                         Google Cloud Storage bucket name
+      --gcs-project-id string                     Google Cloud Storage Project ID
+      --google-credentials string                 Path to Google Credentials file
+  -h, --help                                      help for export
+      --kafka-group-id string                     Kafka consumer group ID
+      --kafka-password string                     Kafka password
+      --kafka-sasl-mechanism string               Kafka password
+      --kafka-security-protocol string            Kafka security protocol
+      --kafka-servers string                      Kafka servers string
+      --kafka-topics stringArray                  Kafka topics
+      --kafka-username string                     Kafka username
+      --limit uint                                Supports file splitting. Files are split by the number of messages specified
+      --max-waiting-seconds-for-new-message int   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
+      --storage string                            Storage type: local file (file) or Google cloud storage (gcs) (default "file")
 
 Global Flags:
-  --log-level string   Log level (default "info")
+      --log-level string   Log level (default "info")
 ```
 #### Sample
 ```shell
 kafka-dump export \
+--storage=file
 --file=path/to/output/data.parquet \
 --kafka-topics=users-activities \
 --kafka-group-id=id=kafka-dump.local \
@@ -141,7 +146,7 @@ kafka-dump count-parquet-rows \
 --file=path/to/output/data.parquet
 ```
 
-# Use Docker
+## Use Docker
 ```shell
 docker run -d --rm \
 -v /local-data:/data \
@@ -156,3 +161,7 @@ kafka-dump export \
 --kafka-security-protocol=SASL_SSL \
 --kafka-sasl-mechanism=PLAIN
 ```
+
+## TODO
+- Import topics from multiple files or directory
+- Import topics from Google Cloud Storage files or directory

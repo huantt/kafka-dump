@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"github.com/huantt/kafka-dump/impl"
+	"github.com/huantt/kafka-dump/pkg/gcs_utils"
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/xitongsys/parquet-go-source/gcs"
 	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/source"
 	"sync"
 	"time"
 )
@@ -24,6 +28,10 @@ func CreateExportCommand() (*cobra.Command, error) {
 	var exportLimitPerFile uint64
 	var maxWaitingSecondsForNewMessage int
 	var concurrentConsumers = 1
+	var googleCredentialsFile string
+	var storageType string
+	var gcsBucketName string
+	var gcsProjectID string
 
 	command := cobra.Command{
 		Use: "export",
@@ -58,11 +66,19 @@ func CreateExportCommand() (*cobra.Command, error) {
 							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
 						}
 						log.Infof("[Worker-%d] Exporting to: %s", workerID, outputFilePath)
-						fileWriter, err := local.NewLocalFileWriter(filePath)
+						fileWriter, err := createParquetFileWriter(
+							Storage(storageType),
+							outputFilePath,
+							gcs_utils.Config{
+								ProjectId:       gcsProjectID,
+								BucketName:      gcsBucketName,
+								CredentialsFile: googleCredentialsFile,
+							},
+						)
 						if err != nil {
 							panic(errors.Wrap(err, "[NewLocalFileWriter]"))
 						}
-						parquetWriter, err := impl.NewParquetWriter(fileWriter)
+						parquetWriter, err := impl.NewParquetWriter(*fileWriter)
 						if err != nil {
 							panic(errors.Wrap(err, "Unable to init parquet file writer"))
 						}
@@ -86,7 +102,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 			wg.Wait()
 		},
 	}
+	command.Flags().StringVar(&storageType, "storage", "file", "Storage type: local file (file) or Google cloud storage (gcs)")
 	command.Flags().StringVarP(&filePath, "file", "f", "", "Output file path (required)")
+	command.Flags().StringVar(&googleCredentialsFile, "google-credentials", "", "Path to Google Credentials file")
+	command.Flags().StringVar(&gcsBucketName, "gcs-bucket", "", "Google Cloud Storage bucket name")
+	command.Flags().StringVar(&gcsProjectID, "gcs-project-id", "", "Google Cloud Storage Project ID")
 	command.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
@@ -98,9 +118,41 @@ func CreateExportCommand() (*cobra.Command, error) {
 	command.Flags().IntVar(&concurrentConsumers, "concurrent-consumers", 1, "Number of concurrent consumers")
 	topics = command.Flags().StringArray("kafka-topics", nil, "Kafka topics")
 	command.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
+	command.MarkFlagsRequiredTogether("google-credentials", "gcs-bucket", "gcs-project-id")
 	err := command.MarkFlagRequired("file")
 	if err != nil {
 		return nil, err
 	}
 	return &command, nil
+}
+
+type Storage string
+
+const (
+	StorageLocalFile          Storage = "file"
+	StorageGoogleCloudStorage Storage = "gcs"
+)
+
+func createParquetFileWriter(storage Storage, filePath string, gcsConfig gcs_utils.Config) (*source.ParquetFile, error) {
+	switch storage {
+	case StorageLocalFile:
+		fw, err := local.NewLocalFileWriter(filePath)
+		if err != nil {
+			return nil, errors.Wrap(err, "[NewLocalFileWriter]")
+		}
+		return &fw, nil
+	case StorageGoogleCloudStorage:
+		ctx := context.Background()
+		client, err := gcs_utils.Singleton(gcsConfig.CredentialsFile)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to create Singleton GCS client")
+		}
+		fw, err := gcs.NewGcsFileWriterWithClient(ctx, client, gcsConfig.ProjectId, gcsConfig.BucketName, filePath)
+		if err != nil {
+			return nil, errors.Wrap(err, "[NewGcsFileWriterWithClient]")
+		}
+		return &fw, nil
+	default:
+		return nil, errors.New(fmt.Sprintf("Storage type must be either file or gcs. Got %s", storage))
+	}
 }
