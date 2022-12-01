@@ -5,7 +5,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
-	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/source"
 	"github.com/xitongsys/parquet-go/writer"
 )
@@ -15,17 +14,13 @@ type ParquetWriter struct {
 	fileWriter    source.ParquetFile
 }
 
-func NewParquetWriter(filePath string) (*ParquetWriter, error) {
-	fw, err := local.NewLocalFileWriter(filePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "[NewLocalFileWriter]")
-	}
-	parquetWriter, err := writer.NewParquetWriter(fw, new(ParquetMessage), 4)
+func NewParquetWriter(fileWriter source.ParquetFile) (*ParquetWriter, error) {
+	parquetWriter, err := writer.NewParquetWriter(fileWriter, new(ParquetMessage), 4)
 	if err != nil {
 		return nil, errors.Wrap(err, "[NewParquetWriter]")
 	}
 	return &ParquetWriter{
-		fileWriter:    fw,
+		fileWriter:    fileWriter,
 		parquetWriter: parquetWriter,
 	}, nil
 }

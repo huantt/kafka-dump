@@ -7,6 +7,7 @@ import (
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/xitongsys/parquet-go-source/local"
 	"sync"
 	"time"
 )
@@ -57,7 +58,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
 						}
 						log.Infof("[Worker-%d] Exporting to: %s", workerID, outputFilePath)
-						parquetWriter, err := impl.NewParquetWriter(outputFilePath)
+						fileWriter, err := local.NewLocalFileWriter(filePath)
+						if err != nil {
+							panic(errors.Wrap(err, "[NewLocalFileWriter]"))
+						}
+						parquetWriter, err := impl.NewParquetWriter(fileWriter)
 						if err != nil {
 							panic(errors.Wrap(err, "Unable to init parquet file writer"))
 						}
