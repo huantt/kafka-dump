@@ -5,11 +5,11 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 COPY . .
-RUN GOOS=linux go build -o docker-dump
+RUN GOOS=linux go build -o kafka-dump
 
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y ca-certificates
 RUN mkdir /app
 WORKDIR /app
 COPY --from=builder /app/docker-dump .
-CMD ./docker-dump export
+CMD ./kafka-dump export
