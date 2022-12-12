@@ -11,5 +11,5 @@ FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y ca-certificates
 RUN mkdir /app
 WORKDIR /app
-COPY --from=builder /app/docker-dump .
+COPY --from=builder /app/kafka-dump .
 CMD ./kafka-dump export
