@@ -1,0 +1,5 @@
+.idea/
+volumes/
+vendor/
+out/
+.DS_Store
