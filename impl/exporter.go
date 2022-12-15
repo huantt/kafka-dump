@@ -48,14 +48,14 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 	signal.Notify(cx, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-cx
-		err = e.onShutdown()
+		err = e.flushData()
 		if err != nil {
 			panic(err)
 		}
 		os.Exit(1)
 	}()
 	defer func() {
-		err = e.onShutdown()
+		err = e.flushData()
 		if err != nil {
 			panic(err)
 		}
@@ -76,11 +76,6 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 		if err != nil {
 			return exportedCount, err
 		}
-		_, err = e.consumer.Commit()
-		if err != nil {
-			err = errors.Wrap(err, "Failed to commit messages")
-			return exportedCount, err
-		}
 		exportedCount++
 		log.Infof("Exported message: %v (Total: %d)", msg.TopicPartition, exportedCount)
 		if e.options != nil && exportedCount == e.options.Limit {
@@ -90,10 +85,15 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 	}
 }
 
-func (e *Exporter) onShutdown() error {
+func (e *Exporter) flushData() error {
 	err := e.writer.Flush()
 	if err != nil {
 		return errors.Wrap(err, "Failed to flush writer")
+	}
+	_, err = e.consumer.Commit()
+	if err != nil {
+		err = errors.Wrap(err, "Failed to commit messages")
+		return err
 	}
 	return nil
 }
