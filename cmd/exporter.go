@@ -23,6 +23,8 @@ func CreateExportCommand() (*cobra.Command, error) {
 	var kafkaPassword string
 	var kafkaSecurityProtocol string
 	var kafkaSASKMechanism string
+	var queuedMaxMessagesKbytes int64
+	var fetchMessageMaxBytes int64
 	var kafkaGroupID string
 	var topics *[]string
 	var exportLimitPerFile uint64
@@ -116,6 +118,8 @@ func CreateExportCommand() (*cobra.Command, error) {
 	command.Flags().Uint64Var(&exportLimitPerFile, "limit", 0, "Supports file splitting. Files are split by the number of messages specified")
 	command.Flags().IntVar(&maxWaitingSecondsForNewMessage, "max-waiting-seconds-for-new-message", 30, "Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever.")
 	command.Flags().IntVar(&concurrentConsumers, "concurrent-consumers", 1, "Number of concurrent consumers")
+	command.Flags().Int64Var(&queuedMaxMessagesKbytes, "queued-max-messages-kbytes", 128000, "Maximum number of kilobytes per topic+partition in the local consumer queue. This value may be overshot by fetch.message.max.bytes")
+	command.Flags().Int64Var(&fetchMessageMaxBytes, "fetch-message-max-bytes", 1048576, "Maximum number of bytes per topic+partition to request when fetching messages from the broker.")
 	topics = command.Flags().StringArray("kafka-topics", nil, "Kafka topics")
 	command.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
 	command.MarkFlagsRequiredTogether("google-credentials", "gcs-bucket", "gcs-project-id")

@@ -9,4 +9,6 @@ type Config struct {
 	ReadTimeoutSeconds        int16  `json:"read_timeout_seconds" mapstructure:"read_timeout_seconds"`
 	GroupId                   string `json:"group_id" mapstructure:"group_id"`
 	QueueBufferingMaxMessages int    `json:"queue_buffering_max_messages" mapstructure:"queue_buffering_max_messages"`
+	QueuedMaxMessagesKbytes   int64  `json:"queued_max_messages_kbytes" mapstructure:"queued_max_messages_kbytes"`
+	FetchMessageMaxBytes      int64  `json:"fetch_message_max_bytes" mapstructure:"fetch_message_max_bytes"`
 }

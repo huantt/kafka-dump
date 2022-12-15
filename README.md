@@ -21,6 +21,7 @@ Usage:
 
 Flags:
       --concurrent-consumers int                  Number of concurrent consumers (default 1)
+      --fetch-message-max-bytes int               Maximum number of bytes per topic+partition to request when fetching messages from the broker. (default 1048576)
   -f, --file string                               Output file path (required)
       --gcs-bucket string                         Google Cloud Storage bucket name
       --gcs-project-id string                     Google Cloud Storage Project ID
@@ -35,6 +36,7 @@ Flags:
       --kafka-username string                     Kafka username
       --limit uint                                Supports file splitting. Files are split by the number of messages specified
       --max-waiting-seconds-for-new-message int   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
+      --queued-max-messages-kbytes int            Maximum number of kilobytes per topic+partition in the local consumer queue. This value may be overshot by fetch.message.max.bytes (default 128000)
       --storage string                            Storage type: local file (file) or Google cloud storage (gcs) (default "file")
 
 Global Flags:

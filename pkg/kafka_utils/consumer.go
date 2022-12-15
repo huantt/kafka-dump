@@ -27,6 +27,18 @@ func NewConsumer(cfg Config) (*kafka.Consumer, error) {
 			return nil, err
 		}
 	}
+	if cfg.QueuedMaxMessagesKbytes > 0 {
+		err := config.SetKey("fetch.message.max.bytes", cfg.FetchMessageMaxBytes)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if cfg.FetchMessageMaxBytes > 0 {
+		err := config.SetKey("queued.max.messages.kbytes", cfg.QueuedMaxMessagesKbytes)
+		if err != nil {
+			return nil, err
+		}
+	}
 	consumer, err := kafka.NewConsumer(config)
 	if err != nil {
 		return nil, err
