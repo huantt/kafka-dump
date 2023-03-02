@@ -53,7 +53,7 @@ func (p *ParquetReader) Read() chan kafka.Message {
 					panic(err)
 				}
 				ch <- *message
-				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
+				log.Debugf("Loaded %d%% (%d/%d)", counter*100/rowNum, counter, rowNum)
 			}
 		}
 		p.parquetReader.ReadStop()
@@ -61,6 +61,7 @@ func (p *ParquetReader) Read() chan kafka.Message {
 		if err != nil {
 			panic(errors.Wrap(err, "Failed to close fileReader"))
 		}
+		close(ch)
 	}()
 	return ch
 }

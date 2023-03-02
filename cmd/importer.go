@@ -8,10 +8,12 @@ import (
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"io/ioutil"
 )
 
 func CreateImportCmd() (*cobra.Command, error) {
 	var filePath string
+	var folder string
 	var kafkaServers string
 	var kafkaUsername string
 	var kafkaPassword string
@@ -21,11 +23,10 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command := cobra.Command{
 		Use: "import",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Infof("Input file: %s", filePath)
-			parquetReader, err := impl.NewParquetReader(filePath)
-			if err != nil {
-				panic(errors.Wrap(err, "Unable to init parquet file reader"))
+			if folder == "" && filePath == "" {
+				panic(errors.New("Input file or folder is required"))
 			}
+			log.Infof("Input file: %s", filePath)
 			kafkaProducerConfig := kafka_utils.Config{
 				BootstrapServers: kafkaServers,
 				SecurityProtocol: kafkaSecurityProtocol,
@@ -53,18 +54,38 @@ func CreateImportCmd() (*cobra.Command, error) {
 					}
 				}
 			}()
-			importer := impl.NewImporter(producer, deliveryChan, parquetReader)
-			if err != nil {
-				panic(errors.Wrap(err, "Unable to init importer"))
+			var filePaths []string
+			if folder != "" {
+				files, err := ioutil.ReadDir(folder)
+				if err != nil {
+					panic(err)
+				}
+				for _, file := range files {
+					if file.IsDir() {
+						continue
+					}
+					filePaths = append(filePaths, fmt.Sprintf("%s/%s", folder, file.Name()))
+				}
 			}
-
-			err = importer.Run()
-			if err != nil {
-				panic(errors.Wrap(err, "Error while running importer"))
+			for _, path := range filePaths {
+				log.Infof("Reading file: %s", path)
+				parquetReader, err := impl.NewParquetReader(path)
+				if err != nil {
+					panic(errors.Wrap(err, "Unable to init parquet file reader"))
+				}
+				importer := impl.NewImporter(producer, deliveryChan, parquetReader)
+				if err != nil {
+					panic(errors.Wrap(err, "Unable to init importer"))
+				}
+				err = importer.Run()
+				if err != nil {
+					panic(errors.Wrap(err, "Error while running importer"))
+				}
 			}
 		},
 	}
-	command.Flags().StringVarP(&filePath, "file", "f", "", "Output file path (required)")
+	command.Flags().StringVarP(&filePath, "file", "f", "", "Input file path (file or folder is required)")
+	command.Flags().StringVar(&folder, "folder", "", "Input folder path (file or folder is required)")
 	command.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")

@@ -45,10 +45,10 @@ Global Flags:
 #### Sample
 ```shell
 kafka-dump export \
---storage=file
+--storage=file \
 --file=path/to/output/data.parquet \
 --kafka-topics=users-activities \
---kafka-group-id=id=kafka-dump.local \
+--kafka-group-id=kafka-dump.local \
 --kafka-servers=localhost:9092 \
 --kafka-username=admin \
 --kafka-password=admin \
@@ -62,7 +62,8 @@ Usage:
    import [flags]
 
 Flags:
-  -f, --file string                      Output file path (required)
+  -f, --file string                      Input file path (file or folder is required)
+      --folder string                    Input folder path (file or folder is required)
   -h, --help                             help for import
       --kafka-password string            Kafka password
       --kafka-sasl-mechanism string      Kafka password
