@@ -19,6 +19,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var kafkaPassword string
 	var kafkaSecurityProtocol string
 	var kafkaSASKMechanism string
+	var overriddenTopic string
 
 	command := cobra.Command{
 		Use: "import",
@@ -73,7 +74,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 				if err != nil {
 					panic(errors.Wrap(err, "Unable to init parquet file reader"))
 				}
-				importer := impl.NewImporter(producer, deliveryChan, parquetReader)
+				importer := impl.NewImporter(producer, deliveryChan, parquetReader, overriddenTopic)
 				if err != nil {
 					panic(errors.Wrap(err, "Unable to init importer"))
 				}
@@ -86,6 +87,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 	}
 	command.Flags().StringVarP(&filePath, "file", "f", "", "Input file path (file or folder is required)")
 	command.Flags().StringVar(&folder, "folder", "", "Input folder path (file or folder is required)")
+	command.Flags().StringVar(&overriddenTopic, "topic", "", "OverriddenTopic string")
 	command.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")

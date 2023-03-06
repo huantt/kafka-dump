@@ -9,16 +9,18 @@ import (
 )
 
 type Importer struct {
-	producer     *kafka.Producer
-	reader       Reader
-	deliveryChan chan kafka.Event
+	producer        *kafka.Producer
+	reader          Reader
+	deliveryChan    chan kafka.Event
+	overriddenTopic string
 }
 
-func NewImporter(producer *kafka.Producer, deliveryChan chan kafka.Event, reader Reader) *Importer {
+func NewImporter(producer *kafka.Producer, deliveryChan chan kafka.Event, reader Reader, overriddenTopic string) *Importer {
 	return &Importer{
-		producer:     producer,
-		reader:       reader,
-		deliveryChan: deliveryChan,
+		producer:        producer,
+		reader:          reader,
+		deliveryChan:    deliveryChan,
+		overriddenTopic: overriddenTopic,
 	}
 }
 
@@ -40,6 +42,9 @@ func (i *Importer) Run() error {
 	messageChn := i.reader.Read()
 
 	for message := range messageChn {
+		if i.overriddenTopic != "" {
+			message.TopicPartition.Topic = &i.overriddenTopic
+		}
 		err := i.producer.Produce(&message, i.deliveryChan)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to produce message: %s", string(message.Value))
