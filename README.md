@@ -154,7 +154,7 @@ kafka-dump count-parquet-rows \
 docker run -d --rm \
 -v /local-data:/data \
 huanttok/kafka-dump:latest \
-kafka-dump export \
+./kafka-dump export \
 --file=/data/path/to/output/data.parquet \
 --kafka-topics=users-activities \
 --kafka-group-id=id=kafka-dump.local \
