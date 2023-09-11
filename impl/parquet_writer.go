@@ -2,6 +2,8 @@ package impl
 
 import (
 	"encoding/json"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
@@ -10,26 +12,32 @@ import (
 )
 
 type ParquetWriter struct {
-	parquetWriter *writer.ParquetWriter
-	fileWriter    source.ParquetFile
+	parquetWriter             *writer.ParquetWriter
+	fileWriter                source.ParquetFile
+	includePartitionAndOffset bool
 }
 
-func NewParquetWriter(fileWriter source.ParquetFile) (*ParquetWriter, error) {
+func NewParquetWriter(fileWriter source.ParquetFile, includePartitionAndOffset bool) (*ParquetWriter, error) {
 	parquetWriter, err := writer.NewParquetWriter(fileWriter, new(ParquetMessage), 4)
 	if err != nil {
 		return nil, errors.Wrap(err, "[NewParquetWriter]")
 	}
 	return &ParquetWriter{
-		fileWriter:    fileWriter,
-		parquetWriter: parquetWriter,
+		fileWriter:                fileWriter,
+		parquetWriter:             parquetWriter,
+		includePartitionAndOffset: includePartitionAndOffset,
 	}, nil
 }
 
 type ParquetMessage struct {
-	Value   string `parquet:"name=value, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	Topic   string `parquet:"name=topic, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	Key     string `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	Headers string `parquet:"name=headers, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Value         string  `parquet:"name=value, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Topic         string  `parquet:"name=topic, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Partition     *int32  `parquet:"name=partition, type=INT32, convertedtype=INT_32"`
+	Offset        *string `parquet:"name=offset, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Key           string  `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Headers       string  `parquet:"name=headers, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Timestamp     string  `parquet:"name=timestamp, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	TimestampType string  `parquet:"name=timestamptype, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
 }
 
 func (f *ParquetWriter) Write(msg kafka.Message) (err error) {
@@ -38,10 +46,18 @@ func (f *ParquetWriter) Write(msg kafka.Message) (err error) {
 		return errors.Wrap(err, "Failed to marshal msg.Headers")
 	}
 	message := ParquetMessage{
-		Value:   string(msg.Value),
-		Topic:   *msg.TopicPartition.Topic,
-		Key:     string(msg.Key),
-		Headers: string(headersBytes),
+		Value:         string(msg.Value),
+		Topic:         *msg.TopicPartition.Topic,
+		Key:           string(msg.Key),
+		Headers:       string(headersBytes),
+		Timestamp:     msg.Timestamp.Format(time.RFC3339),
+		TimestampType: msg.TimestampType.String(),
+	}
+
+	if f.includePartitionAndOffset {
+		message.Partition = &msg.TopicPartition.Partition
+		offset := msg.TopicPartition.Offset.String()
+		message.Offset = &offset
 	}
 
 	err = f.parquetWriter.Write(message)

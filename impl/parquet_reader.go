@@ -2,6 +2,9 @@ package impl
 
 import (
 	"encoding/json"
+	"strconv"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
@@ -70,6 +73,11 @@ func (p *ParquetReader) GetNumberOfRows() int64 {
 }
 
 func toKafkaMessage(message ParquetMessage) (*kafka.Message, error) {
+	timestamp, err := time.Parse(time.RFC3339, message.Timestamp)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to convert string to time.Time: %s", message.Timestamp)
+	}
+
 	var headers []kafka.Header
 	if len(message.Headers) > 0 {
 		err := json.Unmarshal([]byte(message.Headers), &headers)
@@ -77,12 +85,38 @@ func toKafkaMessage(message ParquetMessage) (*kafka.Message, error) {
 			return nil, errors.Wrapf(err, "Failed to unmarshal kafka headers: %s", message.Headers)
 		}
 	}
-	return &kafka.Message{
+
+	var timestampType int
+	switch message.TimestampType {
+	case kafka.TimestampCreateTime.String():
+		timestampType = int(kafka.TimestampCreateTime)
+	case kafka.TimestampLogAppendTime.String():
+		timestampType = int(kafka.TimestampLogAppendTime)
+	case kafka.TimestampNotAvailable.String():
+		fallthrough
+	default:
+		timestampType = int(kafka.TimestampNotAvailable)
+	}
+
+	kafkaMessage := &kafka.Message{
 		Value: []byte(message.Value),
 		TopicPartition: kafka.TopicPartition{
 			Topic: &message.Topic,
 		},
-		Key:     []byte(message.Key),
-		Headers: headers,
-	}, nil
+		Key:           []byte(message.Key),
+		Headers:       headers,
+		Timestamp:     timestamp,
+		TimestampType: kafka.TimestampType(timestampType),
+	}
+
+	if message.Offset != nil {
+		offset, err := strconv.Atoi(*message.Offset)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to convert string to int for message offset: %s", message.Offset)
+		}
+		kafkaMessage.TopicPartition.Offset = kafka.Offset(offset)
+		kafkaMessage.TopicPartition.Partition = *message.Partition
+	}
+
+	return kafkaMessage, nil
 }
