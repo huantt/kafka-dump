@@ -37,12 +37,18 @@ Flags:
       --limit uint                                Supports file splitting. Files are split by the number of messages specified
       --max-waiting-seconds-for-new-message int   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
       --queued-max-messages-kbytes int            Maximum number of kilobytes per topic+partition in the local consumer queue. This value may be overshot by fetch.message.max.bytes (default 128000)
+      --ssl-ca-location string                    location of client ca cert file in pem
+      --ssl-certificate-location string           client's certificate location
+      --ssl-key-location string                   path to ssl private key
+      --ssl-key-password string                   password for ssl private key passphrase
       --storage string                            Storage type: local file (file) or Google cloud storage (gcs) (default "file")
 
 Global Flags:
       --log-level string   Log level (default "info")
 ```
 #### Sample
+
+- Connect to Kafka cluster without the SSL encryption being enabled for exporting the data.
 ```shell
 kafka-dump export \
 --storage=file
@@ -56,24 +62,49 @@ kafka-dump export \
 --kafka-sasl-mechanism=PLAIN
 ```
 
+- Connect to Kafka cluster with the SSL encryption being enabled for exporting the data.
+```shell
+kafka-dump export \
+--storage=file
+--file=path/to/output/data.parquet \
+--kafka-topics=users-activities \
+--kafka-group-id=id=kafka-dump.local \
+--kafka-servers=localhost:9092 \
+--kafka-username=admin \
+--kafka-password=admin \
+--kafka-security-protocol=SSL \
+--kafka-sasl-mechanism=PLAIN
+--ssl-ca-location=<path to ssl cacert>
+--ssl-certificate-location=<path to ssl cert>
+--ssl-key-location=<path to ssl key>
+--ssl-key-password=<ssl key password>
+```
+
 ### Import Kafka topics from parquet file
 ```shell
 Usage:
    import [flags]
 
 Flags:
-  -f, --file string                      Output file path (required)
-  -h, --help                             help for import
-      --kafka-password string            Kafka password
-      --kafka-sasl-mechanism string      Kafka password
-      --kafka-security-protocol string   Kafka security protocol
-      --kafka-servers string             Kafka servers string
-      --kafka-username string            Kafka username
+  -f, --file string                       Output file path (required)
+  -h, --help                              help for import
+  -i, --include-partition-and-offset      to store partition and offset of kafka message in file
+      --kafka-password string             Kafka password
+      --kafka-sasl-mechanism string       Kafka password
+      --kafka-security-protocol string    Kafka security protocol
+      --kafka-servers string              Kafka servers string
+      --kafka-username string             Kafka username
+      --ssl-ca-location string            location of client ca cert file in pem
+      --ssl-certificate-location string   client's certificate location
+      --ssl-key-location string           path to ssl private key
+      --ssl-key-password string           password for ssl private key passphrase
 
 Global Flags:
       --log-level string   Log level (default "info")
 ```
 #### Sample
+
+- Connect to Kafka cluster without the SSL encryption being enabled for importing the data.
 ```shell
 kafka-dump import \
 --file=path/to/input/data.parquet \
@@ -82,6 +113,21 @@ kafka-dump import \
 --kafka-password=admin \
 --kafka-security-protocol=SASL_SSL \
 --kafka-sasl-mechanism=PLAIN
+```
+
+- Connect to Kafka cluster with the SSL encryption being enabled for importing the data.
+```shell
+kafka-dump import \
+--file=path/to/input/data.parquet \
+--kafka-servers=localhost:9092 \
+--kafka-username=admin \
+--kafka-password=admin \
+--kafka-security-protocol=SSL \
+--kafka-sasl-mechanism=PLAIN
+--ssl-ca-location=<path to ssl cacert>
+--ssl-certificate-location=<path to ssl cert>
+--ssl-key-location=<path to ssl key>
+--ssl-key-password=<ssl key password>
 ```
 
 ### Stream messages topic to topic

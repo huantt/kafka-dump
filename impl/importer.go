@@ -1,11 +1,12 @@
 package impl
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/pkg/errors"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/pkg/errors"
 )
 
 type Importer struct {

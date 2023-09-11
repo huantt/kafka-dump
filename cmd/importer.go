@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/huantt/kafka-dump/impl"
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
@@ -17,21 +18,36 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var kafkaPassword string
 	var kafkaSecurityProtocol string
 	var kafkaSASKMechanism string
+	var sslCaLocation string
+	var sslKeyPassword string
+	var sslCertLocation string
+	var sslKeyLocation string
+	var includePartitionAndOffset bool
 
 	command := cobra.Command{
 		Use: "import",
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Infof("Input file: %s", filePath)
-			parquetReader, err := impl.NewParquetReader(filePath)
+			parquetReader, err := impl.NewParquetReader(filePath, includePartitionAndOffset)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init parquet file reader"))
 			}
 			kafkaProducerConfig := kafka_utils.Config{
-				BootstrapServers: kafkaServers,
-				SecurityProtocol: kafkaSecurityProtocol,
-				SASLMechanism:    kafkaSASKMechanism,
-				SASLUsername:     kafkaUsername,
-				SASLPassword:     kafkaPassword,
+				BootstrapServers:          kafkaServers,
+				SecurityProtocol:          kafkaSecurityProtocol,
+				SASLMechanism:             kafkaSASKMechanism,
+				SASLUsername:              kafkaUsername,
+				SASLPassword:              kafkaPassword,
+				ReadTimeoutSeconds:        0,
+				GroupId:                   "",
+				QueueBufferingMaxMessages: 0,
+				QueuedMaxMessagesKbytes:   0,
+				FetchMessageMaxBytes:      0,
+				SSLCALocation:             sslCaLocation,
+				SSLKeyLocation:            sslKeyLocation,
+				SSLCertLocation:           sslCertLocation,
+				SSLKeyPassword:            sslKeyPassword,
+				EnableAutoOffsetStore:     false,
 			}
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
 			if err != nil {
@@ -54,10 +70,6 @@ func CreateImportCmd() (*cobra.Command, error) {
 				}
 			}()
 			importer := impl.NewImporter(producer, deliveryChan, parquetReader)
-			if err != nil {
-				panic(errors.Wrap(err, "Unable to init importer"))
-			}
-
 			err = importer.Run()
 			if err != nil {
 				panic(errors.Wrap(err, "Error while running importer"))
@@ -71,5 +83,10 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
 	command.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	command.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
+	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "location of client ca cert file in pem")
+	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "password for ssl private key passphrase")
+	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "client's certificate location")
+	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
+	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "to store partition and offset of kafka message in file")
 	return &command, nil
 }

@@ -31,6 +31,26 @@ func NewProducer(cfg Config) (*kafka.Producer, error) {
 			return nil, err
 		}
 	}
+
+	if cfg.SSLCALocation != "" && cfg.SSLKeyLocation != "" && cfg.SSLCertLocation != "" && cfg.SSLKeyPassword != "" {
+		err := config.SetKey("ssl.ca.location", cfg.SSLCALocation)
+		if err != nil {
+			return nil, err
+		}
+		err = config.SetKey("ssl.key.location", cfg.SSLKeyLocation)
+		if err != nil {
+			return nil, err
+		}
+		err = config.SetKey("ssl.certificate.location", cfg.SSLCertLocation)
+		if err != nil {
+			return nil, err
+		}
+		err = config.SetKey("ssl.key.password", cfg.SSLKeyPassword)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	kafkaProducer, err := kafka.NewProducer(&config)
 	if err != nil {
 		return nil, err

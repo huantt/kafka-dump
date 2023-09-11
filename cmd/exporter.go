@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/huantt/kafka-dump/impl"
 	"github.com/huantt/kafka-dump/pkg/gcs_utils"
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
@@ -12,8 +15,6 @@ import (
 	"github.com/xitongsys/parquet-go-source/gcs"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/source"
-	"sync"
-	"time"
 )
 
 func CreateExportCommand() (*cobra.Command, error) {
@@ -34,18 +35,28 @@ func CreateExportCommand() (*cobra.Command, error) {
 	var storageType string
 	var gcsBucketName string
 	var gcsProjectID string
+	var sslCaLocation string
+	var sslKeyPassword string
+	var sslCertLocation string
+	var sslKeyLocation string
+	var enableAutoOffsetStore bool
 
 	command := cobra.Command{
 		Use: "export",
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Infof("Limit: %d - Concurrent consumers: %d", exportLimitPerFile, concurrentConsumers)
 			kafkaConsumerConfig := kafka_utils.Config{
-				BootstrapServers: kafkaServers,
-				SecurityProtocol: kafkaSecurityProtocol,
-				SASLMechanism:    kafkaSASKMechanism,
-				SASLUsername:     kafkaUsername,
-				SASLPassword:     kafkaPassword,
-				GroupId:          kafkaGroupID,
+				BootstrapServers:      kafkaServers,
+				SecurityProtocol:      kafkaSecurityProtocol,
+				SASLMechanism:         kafkaSASKMechanism,
+				SASLUsername:          kafkaUsername,
+				SASLPassword:          kafkaPassword,
+				GroupId:               kafkaGroupID,
+				SSLCALocation:         sslCaLocation,
+				SSLKeyPassword:        sslKeyPassword,
+				SSLKeyLocation:        sslKeyLocation,
+				SSLCertLocation:       sslCertLocation,
+				EnableAutoOffsetStore: enableAutoOffsetStore,
 			}
 			consumer, err := kafka_utils.NewConsumer(kafkaConsumerConfig)
 			if err != nil {
@@ -113,6 +124,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
 	command.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
+	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "location of client ca cert file in pem")
+	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "password for ssl private key passphrase")
+	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "client's certificate location")
+	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
+	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "to store offset in kafka broker")
 	command.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	command.Flags().StringVar(&kafkaGroupID, "kafka-group-id", "", "Kafka consumer group ID")
 	command.Flags().Uint64Var(&exportLimitPerFile, "limit", 0, "Supports file splitting. Files are split by the number of messages specified")
