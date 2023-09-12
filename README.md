@@ -1,4 +1,7 @@
 # Kafka data backup
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Go Report Card](https://goreportcard.com/badge/github.com/huantt/kafka-dump)](https://goreportcard.com/report/github.com/huantt/kafka-dump)
+
 Kafka dump is a tool to back up and restore your Kafka data.
 
 It helps you reduce the cost of storing the data that you don't need to use right now but can not delete.
