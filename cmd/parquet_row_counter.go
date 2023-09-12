@@ -13,7 +13,7 @@ func CreateCountParquetRowCommand() (*cobra.Command, error) {
 	command := cobra.Command{
 		Use: "count-parquet-rows",
 		Run: func(cmd *cobra.Command, args []string) {
-			parquetReader, err := impl.NewParquetReader(filePath)
+			parquetReader, err := impl.NewParquetReader(filePath, false)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init parquet file reader"))
 			}

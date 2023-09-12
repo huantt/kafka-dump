@@ -1,13 +1,14 @@
 package impl
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/huantt/kafka-dump/pkg/log"
-	"github.com/pkg/errors"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/huantt/kafka-dump/pkg/log"
+	"github.com/pkg/errors"
 )
 
 type Exporter struct {
@@ -92,8 +93,11 @@ func (e *Exporter) flushData() error {
 	}
 	_, err = e.consumer.Commit()
 	if err != nil {
-		err = errors.Wrap(err, "Failed to commit messages")
-		return err
+		if kafkaErr, ok := err.(kafka.Error); ok && kafkaErr.Code() == kafka.ErrNoOffset {
+			log.Warnf("No offset, it can happen when there is no message to read, error is: %v", err)
+		} else {
+			return errors.Wrap(err, "Failed to commit messages")
+		}
 	}
 	return nil
 }
