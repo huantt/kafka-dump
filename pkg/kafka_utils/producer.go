@@ -12,6 +12,7 @@ func NewProducer(cfg Config) (*kafka.Producer, error) {
 	config := kafka.ConfigMap{
 		"bootstrap.servers":            cfg.BootstrapServers,
 		"queue.buffering.max.messages": queueBufferingMaxMessages, // librdkafka's default value,
+		"client.id":                    cfg.ClientID,
 	}
 	if cfg.SecurityProtocol != "" && cfg.SASLMechanism != "" && cfg.SASLUsername != "" && cfg.SASLPassword != "" {
 		err := config.SetKey("security.protocol", cfg.SecurityProtocol)

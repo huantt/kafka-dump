@@ -23,6 +23,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var sslCertLocation string
 	var sslKeyLocation string
 	var includePartitionAndOffset bool
+	var clientid string
 
 	command := cobra.Command{
 		Use: "import",
@@ -48,6 +49,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 				SSLCertLocation:           sslCertLocation,
 				SSLKeyPassword:            sslKeyPassword,
 				EnableAutoOffsetStore:     false,
+				ClientID:                  clientid,
 			}
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
 			if err != nil {
@@ -83,10 +85,11 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
 	command.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	command.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
-	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "location of client ca cert file in pem")
-	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "password for ssl private key passphrase")
-	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "client's certificate location")
-	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
-	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "to store partition and offset of kafka message in file")
+	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "Location of client ca cert file in pem")
+	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "Password for ssl private key passphrase")
+	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "Client's certificate location")
+	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "Path to ssl private key")
+	command.Flags().StringVar(&clientid, "client-id", "", "Producer client id")
+	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "To store partition and offset of kafka message in file")
 	return &command, nil
 }
