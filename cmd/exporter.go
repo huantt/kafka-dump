@@ -62,7 +62,7 @@ func CreateExportCommand() (*cobra.Command, error) {
 			for i := 0; i < concurrentConsumers; i++ {
 				go func(workerID int) {
 					defer wg.Done()
-					for true {
+					for {
 						outputFilePath := filePath
 						if exportLimitPerFile > 0 {
 							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
