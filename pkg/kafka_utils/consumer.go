@@ -1,6 +1,6 @@
 package kafka_utils
 
-import "github.com/confluentinc/confluent-kafka-go/kafka"
+import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
 func NewConsumer(cfg Config) (*kafka.Consumer, error) {
 	config := &kafka.ConfigMap{

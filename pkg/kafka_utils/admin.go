@@ -2,19 +2,11 @@ package kafka_utils
 
 import "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
-const DefaultQueueBufferingMaxMessages = 10000
+func NewAdminClient(cfg Config) (*kafka.AdminClient, error) {
+	config := &kafka.ConfigMap{
+		"bootstrap.servers": cfg.BootstrapServers,
+	}
 
-func NewProducer(cfg Config) (*kafka.Producer, error) {
-	queueBufferingMaxMessages := DefaultQueueBufferingMaxMessages
-	if cfg.QueueBufferingMaxMessages > 0 {
-		queueBufferingMaxMessages = cfg.QueueBufferingMaxMessages
-	}
-	config := kafka.ConfigMap{
-		"bootstrap.servers":            cfg.BootstrapServers,
-		"queue.buffering.max.messages": queueBufferingMaxMessages, // librdkafka's default value,
-		"client.id":                    cfg.ClientID,
-		"enable.idempotence":           true,
-	}
 	if cfg.SecurityProtocol != "" && cfg.SASLMechanism != "" && cfg.SASLUsername != "" && cfg.SASLPassword != "" {
 		err := config.SetKey("security.protocol", cfg.SecurityProtocol)
 		if err != nil {
@@ -53,9 +45,9 @@ func NewProducer(cfg Config) (*kafka.Producer, error) {
 		}
 	}
 
-	kafkaProducer, err := kafka.NewProducer(&config)
+	admin, err := kafka.NewAdminClient(config)
 	if err != nil {
 		return nil, err
 	}
-	return kafkaProducer, nil
+	return admin, nil
 }

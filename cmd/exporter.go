@@ -58,6 +58,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 				SSLCertLocation:       sslCertLocation,
 				EnableAutoOffsetStore: enableAutoOffsetStore,
 			}
+			adminClient, err := kafka_utils.NewAdminClient(kafkaConsumerConfig)
+			if err != nil {
+				panic(errors.Wrap(err, "Unable to init admin client"))
+			}
+
 			consumer, err := kafka_utils.NewConsumer(kafkaConsumerConfig)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init consumer"))
@@ -95,7 +100,7 @@ func CreateExportCommand() (*cobra.Command, error) {
 						if err != nil {
 							panic(errors.Wrap(err, "Unable to init parquet file writer"))
 						}
-						exporter, err := impl.NewExporter(consumer, *topics, parquetWriter, options)
+						exporter, err := impl.NewExporter(adminClient, consumer, *topics, parquetWriter, options)
 						if err != nil {
 							panic(errors.Wrap(err, "Failed to init exporter"))
 						}

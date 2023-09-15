@@ -1,13 +1,14 @@
 package impl
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/huantt/kafka-dump/pkg/log"
-	"github.com/pkg/errors"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/huantt/kafka-dump/pkg/log"
+	"github.com/pkg/errors"
 )
 
 type Streamer struct {

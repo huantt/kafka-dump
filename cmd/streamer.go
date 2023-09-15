@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"time"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/huantt/kafka-dump/impl"
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/spf13/cobra"
-	"time"
 )
 
 func CreateStreamCmd() (*cobra.Command, error) {

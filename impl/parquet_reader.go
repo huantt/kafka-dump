@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/xitongsys/parquet-go-source/local"
