@@ -37,6 +37,7 @@ type Options struct {
 
 type Writer interface {
 	Write(msg kafka.Message) error
+	OffsetWrite(msg kafka.ConsumerGroupTopicPartitions) error
 	Flush() error
 }
 
@@ -122,7 +123,7 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 
 	for _, topic := range e.topics {
 		groupList := topicTogroupNameList[topic]
-		for k, _ := range groupList {
+		for k := range groupList {
 			groupTopicPartitions := make([]kafka.ConsumerGroupTopicPartitions, 0)
 			kafkaTopicPartitions := topicToPartitionList[topic]
 			groupTopicPartition := kafka.ConsumerGroupTopicPartitions{
@@ -136,7 +137,8 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 				return exportedCount, errors.Wrapf(err, "unable to list consumer groups offsets %v", groupTopicPartitions)
 			}
 			for _, res := range lcgor.ConsumerGroupsTopicPartitions {
-				log.Infof("consumer group topic paritions is %v", res)
+				log.Infof("consumer group topic paritions is %v", res.String())
+				e.writer.OffsetWrite(res)
 			}
 		}
 	}

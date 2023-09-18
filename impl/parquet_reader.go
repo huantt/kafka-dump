@@ -14,43 +14,57 @@ import (
 )
 
 type ParquetReader struct {
-	parquetReader             *reader.ParquetReader
-	fileReader                source.ParquetFile
+	parquetReaderMessage      *reader.ParquetReader
+	parquetReaderOffset       *reader.ParquetReader
+	fileReaderMessage         source.ParquetFile
+	fileReaderOffset          source.ParquetFile
 	includePartitionAndOffset bool
 }
 
-func NewParquetReader(filePath string, includePartitionAndOffset bool) (*ParquetReader, error) {
-	fr, err := local.NewLocalFileReader(filePath)
+func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAndOffset bool) (*ParquetReader, error) {
+	fileReaderMessage, err := local.NewLocalFileReader(filePathMessage)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to init file reader")
 	}
 
-	parquetReader, err := reader.NewParquetReader(fr, new(ParquetMessage), 4)
+	parquetReaderMessage, err := reader.NewParquetReader(fileReaderMessage, new(KafkaMessage), 9)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to init parquet reader")
+	}
+
+	fileReaderOffset, err := local.NewLocalFileReader(filePathOffset)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to init file reader")
+	}
+
+	parquetReaderOffset, err := reader.NewParquetReader(fileReaderOffset, new(OffsetMessage), 4)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to init parquet reader")
 	}
 	return &ParquetReader{
-		fileReader:                fr,
-		parquetReader:             parquetReader,
+		fileReaderMessage:         fileReaderMessage,
+		fileReaderOffset:          fileReaderOffset,
+		parquetReaderMessage:      parquetReaderMessage,
+		parquetReaderOffset:       parquetReaderOffset,
 		includePartitionAndOffset: includePartitionAndOffset,
 	}, nil
 }
 
 const batchSize = 10
 
-func (p *ParquetReader) Read() chan kafka.Message {
-	rowNum := int(p.parquetReader.GetNumRows())
+func (p *ParquetReader) ReadMessage() chan kafka.Message {
+	rowNum := int(p.parquetReaderMessage.GetNumRows())
 	ch := make(chan kafka.Message, batchSize)
 	counter := 0
 	go func() {
 		for i := 0; i < rowNum/batchSize+1; i++ {
-			parquetMessages := make([]ParquetMessage, batchSize)
-			if err := p.parquetReader.Read(&parquetMessages); err != nil {
+			kafkaMessages := make([]KafkaMessage, batchSize)
+			if err := p.parquetReaderMessage.Read(&kafkaMessages); err != nil {
 				err = errors.Wrap(err, "Failed to bulk read messages from parquet file")
 				panic(err)
 			}
 
-			for _, parquetMessage := range parquetMessages {
+			for _, parquetMessage := range kafkaMessages {
 				counter++
 				message, err := toKafkaMessage(parquetMessage, p.includePartitionAndOffset)
 				if err != nil {
@@ -61,20 +75,60 @@ func (p *ParquetReader) Read() chan kafka.Message {
 				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
 			}
 		}
-		p.parquetReader.ReadStop()
-		err := p.fileReader.Close()
+		p.parquetReaderMessage.ReadStop()
+		err := p.fileReaderMessage.Close()
 		if err != nil {
 			panic(errors.Wrap(err, "Failed to close fileReader"))
 		}
+		close(ch)
 	}()
 	return ch
 }
 
-func (p *ParquetReader) GetNumberOfRows() int64 {
-	return p.parquetReader.GetNumRows()
+func (p *ParquetReader) ReadOffset() chan kafka.ConsumerGroupTopicPartitions {
+	rowNum := int(p.parquetReaderOffset.GetNumRows())
+	ch := make(chan kafka.ConsumerGroupTopicPartitions, batchSize)
+	counter := 0
+	go func() {
+		for i := 0; i < rowNum/batchSize+1; i++ {
+			offsetMessages := make([]OffsetMessage, batchSize)
+			if err := p.parquetReaderOffset.Read(&offsetMessages); err != nil {
+				err = errors.Wrap(err, "Failed to bulk read messages from parquet file")
+				panic(err)
+			}
+
+			resMessages, err := toKafkaConsumerGroupTopicPartitions(offsetMessages)
+			if err != nil {
+				err = errors.Wrapf(err, "Failed to parse offset messages from offset file")
+				panic(err)
+			}
+
+			for _, offsetMessage := range resMessages {
+				counter++
+				log.Infof("offset message is: %v", offsetMessage)
+				ch <- offsetMessage
+				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
+			}
+		}
+		p.parquetReaderOffset.ReadStop()
+		err := p.fileReaderOffset.Close()
+		if err != nil {
+			panic(errors.Wrap(err, "Failed to close fileReader"))
+		}
+		close(ch)
+	}()
+	return ch
 }
 
-func toKafkaMessage(message ParquetMessage, includePartitionAndOffset bool) (*kafka.Message, error) {
+func (p *ParquetReader) GetNumberOfRowsInMessageFile() int64 {
+	return p.parquetReaderMessage.GetNumRows()
+}
+
+func (p *ParquetReader) GetNumberOfRowsInOffsetFile() int64 {
+	return p.parquetReaderOffset.GetNumRows()
+}
+
+func toKafkaMessage(message KafkaMessage, includePartitionAndOffset bool) (*kafka.Message, error) {
 	timestamp, err := time.Parse(time.RFC3339, message.Timestamp)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to convert string to time.Time: %s", message.Timestamp)
@@ -121,4 +175,40 @@ func toKafkaMessage(message ParquetMessage, includePartitionAndOffset bool) (*ka
 	}
 
 	return kafkaMessage, nil
+}
+
+func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafka.ConsumerGroupTopicPartitions, error) {
+	res := make([]kafka.ConsumerGroupTopicPartitions, 0)
+	groupIDToPartitions := make(map[string][]kafka.TopicPartition)
+	if len(offsetMessages) > 0 {
+		for _, offsetMessage := range offsetMessages {
+			var topicPartition kafka.TopicPartition
+			offset, err := strconv.Atoi(offsetMessage.Offset)
+			if err != nil {
+				return res, errors.Wrapf(err, "Failed to convert string to int for message offset: %s", offsetMessage.Offset)
+			}
+			topicPartition.Offset = kafka.Offset(offset)
+			topicPartition.Partition = offsetMessage.Partition
+			topicPartition.Topic = &offsetMessage.Topic
+			if val, ok := groupIDToPartitions[offsetMessage.GroupID]; !ok {
+				topicPartitions := make(kafka.TopicPartitions, 0)
+				topicPartitions = append(topicPartitions, topicPartition)
+				groupIDToPartitions[offsetMessage.GroupID] = topicPartitions
+			} else {
+				val = append(val, topicPartition)
+				groupIDToPartitions[offsetMessage.GroupID] = val
+			}
+		}
+
+		for k, v := range groupIDToPartitions {
+			var consumerGroupTopicPartition kafka.ConsumerGroupTopicPartitions
+			consumerGroupTopicPartition.Group = k
+			consumerGroupTopicPartition.Partitions = v
+			res = append(res, consumerGroupTopicPartition)
+		}
+	} else {
+		return res, errors.New("nothing to read!!!")
+	}
+
+	return res, nil
 }

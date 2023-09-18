@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -12,7 +13,8 @@ import (
 )
 
 func CreateImportCmd() (*cobra.Command, error) {
-	var filePath string
+	var messageFilePath string
+	var offsetFilePath string
 	var kafkaServers string
 	var kafkaUsername string
 	var kafkaPassword string
@@ -28,8 +30,9 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command := cobra.Command{
 		Use: "import",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Infof("Input file: %s", filePath)
-			parquetReader, err := impl.NewParquetReader(filePath, includePartitionAndOffset)
+			logger := log.WithContext(context.Background())
+			logger.Infof("Input file: %s", messageFilePath)
+			parquetReader, err := impl.NewParquetReader(messageFilePath, offsetFilePath, includePartitionAndOffset)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init parquet file reader"))
 			}
@@ -48,7 +51,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 				SSLKeyLocation:            sslKeyLocation,
 				SSLCertLocation:           sslCertLocation,
 				SSLKeyPassword:            sslKeyPassword,
-				EnableAutoOffsetStore:     false,
+				EnableAutoOffsetStore:     true,
 				ClientID:                  clientid,
 			}
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
@@ -66,19 +69,31 @@ func CreateImportCmd() (*cobra.Command, error) {
 					if m.TopicPartition.Error != nil {
 						panic(fmt.Sprintf("Failed to deliver message: %v\n", m.TopicPartition))
 					} else {
-						log.Debugf("Successfully produced record to topic %s partition [%d] @ offset %v\n",
+						logger.Debugf("Successfully produced record to topic %s partition [%d] @ offset %v\n",
 							*m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 					}
 				}
 			}()
-			importer := impl.NewImporter(producer, deliveryChan, parquetReader)
-			err = importer.Run()
+			kafkaConsumerConfig := kafka_utils.Config{
+				BootstrapServers: kafkaServers,
+				SecurityProtocol: kafkaSecurityProtocol,
+				SASLMechanism:    kafkaSASKMechanism,
+				SASLUsername:     kafkaUsername,
+				SASLPassword:     kafkaPassword,
+				SSLCALocation:    sslCaLocation,
+				SSLKeyPassword:   sslKeyPassword,
+				SSLKeyLocation:   sslKeyLocation,
+				SSLCertLocation:  sslCertLocation,
+			}
+			importer := impl.NewImporter(logger, producer, deliveryChan, parquetReader)
+			err = importer.Run(kafkaConsumerConfig)
 			if err != nil {
 				panic(errors.Wrap(err, "Error while running importer"))
 			}
 		},
 	}
-	command.Flags().StringVarP(&filePath, "file", "f", "", "Output file path (required)")
+	command.Flags().StringVarP(&messageFilePath, "file", "f", "", "Output file path for storing message (required)")
+	command.Flags().StringVarP(&offsetFilePath, "offset-file", "o", "", "Output file path for storing offset (required)")
 	command.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
@@ -91,5 +106,13 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "Path to ssl private key")
 	command.Flags().StringVar(&clientid, "client-id", "", "Producer client id")
 	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "To store partition and offset of kafka message in file")
+	err := command.MarkFlagRequired("file")
+	if err != nil {
+		return nil, err
+	}
+	err = command.MarkFlagRequired("offset-file")
+	if err != nil {
+		return nil, err
+	}
 	return &command, nil
 }

@@ -8,20 +8,27 @@ import (
 )
 
 func CreateCountParquetRowCommand() (*cobra.Command, error) {
-	var filePath string
+	var filePathMessage string
+	var filePathOffset string
 
 	command := cobra.Command{
 		Use: "count-parquet-rows",
 		Run: func(cmd *cobra.Command, args []string) {
-			parquetReader, err := impl.NewParquetReader(filePath, false)
+			parquetReader, err := impl.NewParquetReader(filePathMessage, filePathOffset, false)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init parquet file reader"))
 			}
-			log.Infof("Number of rows: %d", parquetReader.GetNumberOfRows())
+			log.Infof("Number of rows in message file: %d", parquetReader.GetNumberOfRowsInMessageFile())
+			log.Infof("Number of rows in offset file: %d", parquetReader.GetNumberOfRowsInOffsetFile())
 		},
 	}
-	command.Flags().StringVarP(&filePath, "file", "f", "", "File path (required)")
+	command.Flags().StringVarP(&filePathMessage, "file", "f", "", "File path of stored kafka message (required)")
+	command.Flags().StringVarP(&filePathOffset, "offset-file", "o", "", "File path of stored kafka offset (required)")
 	err := command.MarkFlagRequired("file")
+	if err != nil {
+		return nil, err
+	}
+	err = command.MarkFlagRequired("offset-file")
 	if err != nil {
 		return nil, err
 	}
