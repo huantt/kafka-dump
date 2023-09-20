@@ -142,16 +142,18 @@ func (e *Exporter) StoreConsumerGroupOffset() error {
 		}
 		log.Infof("group result is: %v", groupRes)
 
-		// improve the complexity
+		// TODO: improve the complexity
 		for _, groupDescription := range groupRes.ConsumerGroupDescriptions {
 			log.Infof("group description is: %v", groupDescription)
 			for _, member := range groupDescription.Members {
 				log.Infof("member is: %v", member)
 				for _, groupTopic := range member.Assignment.TopicPartitions {
 					log.Infof("group topic is: %s", *groupTopic.Topic)
-					log.Infof("group description groupid: %s", groupDescription.GroupID)
 					for _, topic := range e.topics {
 						log.Infof("topic is: %s", topic)
+						// Matching the topic with the provided topic
+						// as we don't want to store offset for all the
+						// consumer group
 						if *groupTopic.Topic == topic {
 							consumerGroupList[groupDescription.GroupID] = struct{}{}
 						}

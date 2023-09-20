@@ -98,7 +98,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 		},
 	}
 	command.Flags().StringVarP(&messageFilePath, "file", "f", "", "Output file path for storing message (required)")
-	command.Flags().StringVarP(&offsetFilePath, "offset-file", "o", "", "Output file path for storing offset (required)")
+	command.Flags().StringVarP(&offsetFilePath, "offset-file", "o", "", "Output file path for storing offset")
 	command.Flags().StringVar(&kafkaServers, "kafka-servers", "", "Kafka servers string")
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
@@ -114,10 +114,6 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&restoreAfter, "restore-after", "", "timestamp in RFC3339 format to restore data after this time")
 	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "To store partition and offset of kafka message in file")
 	err := command.MarkFlagRequired("file")
-	if err != nil {
-		return nil, err
-	}
-	err = command.MarkFlagRequired("offset-file")
 	if err != nil {
 		return nil, err
 	}

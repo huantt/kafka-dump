@@ -21,6 +21,8 @@ type ParquetReader struct {
 }
 
 func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAndOffset bool) (*ParquetReader, error) {
+	var fileReaderOffset source.ParquetFile
+	var parquetReaderOffset *reader.ParquetReader
 	fileReaderMessage, err := local.NewLocalFileReader(filePathMessage)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to init file reader")
@@ -31,14 +33,16 @@ func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAn
 		return nil, errors.Wrap(err, "Failed to init parquet reader")
 	}
 
-	fileReaderOffset, err := local.NewLocalFileReader(filePathOffset)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to init file reader")
-	}
+	if filePathOffset != "" {
+		fileReaderOffset, err = local.NewLocalFileReader(filePathOffset)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to init file reader")
+		}
 
-	parquetReaderOffset, err := reader.NewParquetReader(fileReaderOffset, new(OffsetMessage), 4)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to init parquet reader")
+		parquetReaderOffset, err = reader.NewParquetReader(fileReaderOffset, new(OffsetMessage), 4)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to init parquet reader")
+		}
 	}
 	return &ParquetReader{
 		fileReaderMessage:         fileReaderMessage,
@@ -52,8 +56,11 @@ func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAn
 const batchSize = 10
 
 func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time) chan kafka.Message {
-	rowNum := int(p.parquetReaderMessage.GetNumRows())
 	ch := make(chan kafka.Message, batchSize)
+	if p.parquetReaderMessage == nil {
+		return ch
+	}
+	rowNum := int(p.parquetReaderMessage.GetNumRows())
 	counter := 0
 	go func() {
 		for i := 0; i < rowNum/batchSize+1; i++ {
@@ -87,9 +94,17 @@ func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time) chan 
 }
 
 func (p *ParquetReader) ReadOffset() chan kafka.ConsumerGroupTopicPartitions {
-	rowNum := int(p.parquetReaderOffset.GetNumRows())
 	ch := make(chan kafka.ConsumerGroupTopicPartitions, batchSize)
+	// When offset file is not given
+	if p.parquetReaderOffset == nil {
+		return ch
+	}
+	rowNum := int(p.parquetReaderOffset.GetNumRows())
 	counter := 0
+	// When offset file is empty
+	if rowNum == 0 {
+		return ch
+	}
 	go func() {
 		for i := 0; i < rowNum/batchSize+1; i++ {
 			offsetMessages := make([]OffsetMessage, batchSize)
