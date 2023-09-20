@@ -26,6 +26,8 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var sslKeyLocation string
 	var includePartitionAndOffset bool
 	var clientid string
+	var restoreBefore string
+	var restoreAfter string
 
 	command := cobra.Command{
 		Use: "import",
@@ -85,7 +87,10 @@ func CreateImportCmd() (*cobra.Command, error) {
 				SSLKeyLocation:   sslKeyLocation,
 				SSLCertLocation:  sslCertLocation,
 			}
-			importer := impl.NewImporter(logger, producer, deliveryChan, parquetReader)
+			importer, err := impl.NewImporter(logger, producer, deliveryChan, parquetReader, restoreBefore, restoreAfter)
+			if err != nil {
+				panic(errors.Wrap(err, "unable to init importer"))
+			}
 			err = importer.Run(kafkaConsumerConfig)
 			if err != nil {
 				panic(errors.Wrap(err, "Error while running importer"))
@@ -105,6 +110,8 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "Client's certificate location")
 	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "Path to ssl private key")
 	command.Flags().StringVar(&clientid, "client-id", "", "Producer client id")
+	command.Flags().StringVar(&restoreBefore, "restore-before", "", "timestamp in RFC3339 format to restore data before this time")
+	command.Flags().StringVar(&restoreAfter, "restore-after", "", "timestamp in RFC3339 format to restore data after this time")
 	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "To store partition and offset of kafka message in file")
 	err := command.MarkFlagRequired("file")
 	if err != nil {

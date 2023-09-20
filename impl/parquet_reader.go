@@ -2,7 +2,6 @@ package impl
 
 import (
 	"encoding/json"
-	"strconv"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -52,7 +51,7 @@ func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAn
 
 const batchSize = 10
 
-func (p *ParquetReader) ReadMessage() chan kafka.Message {
+func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time) chan kafka.Message {
 	rowNum := int(p.parquetReaderMessage.GetNumRows())
 	ch := make(chan kafka.Message, batchSize)
 	counter := 0
@@ -66,13 +65,15 @@ func (p *ParquetReader) ReadMessage() chan kafka.Message {
 
 			for _, parquetMessage := range kafkaMessages {
 				counter++
-				message, err := toKafkaMessage(parquetMessage, p.includePartitionAndOffset)
+				message, err := toKafkaMessage(parquetMessage, p.includePartitionAndOffset, restoreBefore, restoreAfter)
 				if err != nil {
 					err = errors.Wrapf(err, "Failed to parse kafka message from parquet message")
 					panic(err)
 				}
-				ch <- *message
-				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
+				if message != nil {
+					ch <- *message
+					log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
+				}
 			}
 		}
 		p.parquetReaderMessage.ReadStop()
@@ -128,10 +129,22 @@ func (p *ParquetReader) GetNumberOfRowsInOffsetFile() int64 {
 	return p.parquetReaderOffset.GetNumRows()
 }
 
-func toKafkaMessage(message KafkaMessage, includePartitionAndOffset bool) (*kafka.Message, error) {
+func toKafkaMessage(message KafkaMessage, includePartitionAndOffset bool, restoreBefore, restoreAfter time.Time) (*kafka.Message, error) {
 	timestamp, err := time.Parse(time.RFC3339, message.Timestamp)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to convert string to time.Time: %s", message.Timestamp)
+	}
+
+	if !restoreBefore.IsZero() {
+		if !timestamp.Before(restoreBefore) {
+			return nil, nil
+		}
+	}
+
+	if !restoreAfter.IsZero() {
+		if !timestamp.After(restoreAfter) {
+			return nil, nil
+		}
 	}
 
 	var headers []kafka.Header
@@ -166,11 +179,11 @@ func toKafkaMessage(message KafkaMessage, includePartitionAndOffset bool) (*kafk
 	}
 
 	if includePartitionAndOffset {
-		offset, err := strconv.Atoi(message.Offset)
+		kafkaOffset := &kafkaMessage.TopicPartition.Offset
+		err = kafkaOffset.Set(message.Offset)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to convert string to int for message offset: %s", message.Offset)
+			return nil, errors.Wrapf(err, "Failed to set offset for message offset: %s", message.Offset)
 		}
-		kafkaMessage.TopicPartition.Offset = kafka.Offset(offset)
 		kafkaMessage.TopicPartition.Partition = message.Partition
 	}
 
@@ -183,11 +196,11 @@ func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafk
 	if len(offsetMessages) > 0 {
 		for _, offsetMessage := range offsetMessages {
 			var topicPartition kafka.TopicPartition
-			offset, err := strconv.Atoi(offsetMessage.Offset)
+			kafkaOffset := &topicPartition.Offset
+			err := kafkaOffset.Set(offsetMessage.Offset)
 			if err != nil {
-				return res, errors.Wrapf(err, "Failed to convert string to int for message offset: %s", offsetMessage.Offset)
+				return nil, errors.Wrapf(err, "Failed to set offset during consumer offset restore: %s", offsetMessage.Offset)
 			}
-			topicPartition.Offset = kafka.Offset(offset)
 			topicPartition.Partition = offsetMessage.Partition
 			topicPartition.Topic = &offsetMessage.Topic
 			if val, ok := groupIDToPartitions[offsetMessage.GroupID]; !ok {

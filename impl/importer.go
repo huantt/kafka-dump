@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
@@ -12,23 +13,44 @@ import (
 )
 
 type Importer struct {
-	logger       log.Logger
-	producer     *kafka.Producer
-	reader       Reader
-	deliveryChan chan kafka.Event
+	logger        log.Logger
+	producer      *kafka.Producer
+	reader        Reader
+	deliveryChan  chan kafka.Event
+	restoreBefore time.Time
+	restoreAfter  time.Time
 }
 
-func NewImporter(log log.Logger, producer *kafka.Producer, deliveryChan chan kafka.Event, reader Reader) *Importer {
-	return &Importer{
-		logger:       log,
-		producer:     producer,
-		reader:       reader,
-		deliveryChan: deliveryChan,
+func NewImporter(log log.Logger, producer *kafka.Producer, deliveryChan chan kafka.Event, reader Reader, restoreBefore, restoreAfter string) (*Importer, error) {
+	var restoreAfterTimeUTC, restoreBeforeTimeUTC time.Time
+
+	if restoreAfter != "" {
+		restoreAfterTime, err := time.Parse(time.RFC3339, restoreAfter)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to init importer")
+		}
+		restoreAfterTimeUTC = restoreAfterTime.UTC()
 	}
+
+	if restoreBefore != "" {
+		restoreBeforeTime, err := time.Parse(time.RFC3339, restoreBefore)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to init importer")
+		}
+		restoreBeforeTimeUTC = restoreBeforeTime.UTC()
+	}
+	return &Importer{
+		logger:        log,
+		producer:      producer,
+		reader:        reader,
+		deliveryChan:  deliveryChan,
+		restoreBefore: restoreBeforeTimeUTC,
+		restoreAfter:  restoreAfterTimeUTC,
+	}, nil
 }
 
 type Reader interface {
-	ReadMessage() chan kafka.Message
+	ReadMessage(restoreBefore, restoreAfter time.Time) chan kafka.Message
 	ReadOffset() chan kafka.ConsumerGroupTopicPartitions
 }
 
@@ -44,7 +66,7 @@ func (i *Importer) Run(cfg kafka_utils.Config) error {
 		i.producer.Flush(30 * 1000)
 	}()
 	offsetChan := i.reader.ReadOffset()
-	messageChn := i.reader.ReadMessage()
+	messageChn := i.reader.ReadMessage(i.restoreBefore, i.restoreAfter)
 
 	for {
 		select {
@@ -71,6 +93,7 @@ func (i *Importer) Run(cfg kafka_utils.Config) error {
 				panic(errors.Wrap(err, "Unable to restore offsets of consumer"))
 			}
 			i.logger.Infof("final result of commit offsets is: %v", res)
+			consumer.Close()
 		}
 	}
 }
