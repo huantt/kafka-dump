@@ -44,10 +44,6 @@ type Writer interface {
 const defaultMaxWaitingTimeForNewMessage = time.Duration(30) * time.Second
 
 func (e *Exporter) Run() (exportedCount uint64, err error) {
-	err = e.StoreConsumerGroupOffset()
-	if err != nil {
-		return exportedCount, errors.Wrap(err, "unable to read consumer group")
-	}
 	err = e.consumer.SubscribeTopics(e.topics, nil)
 	if err != nil {
 		return
@@ -61,12 +57,20 @@ func (e *Exporter) Run() (exportedCount uint64, err error) {
 		if err != nil {
 			panic(err)
 		}
+		err = e.StoreConsumerGroupOffset()
+		if err != nil {
+			panic(errors.Wrap(err, "unable to read consumer group"))
+		}
 		os.Exit(1)
 	}()
 	defer func() {
 		err = e.flushData()
 		if err != nil {
 			panic(err)
+		}
+		err = e.StoreConsumerGroupOffset()
+		if err != nil {
+			panic(errors.Wrap(err, "unable to read consumer group"))
 		}
 	}()
 	maxWaitingTimeForNewMessage := defaultMaxWaitingTimeForNewMessage
@@ -201,13 +205,16 @@ func (e *Exporter) StoreConsumerGroupOffset() error {
 			}
 			groupTopicPartitions = append(groupTopicPartitions, groupTopicPartition)
 			log.Infof("groupTopicPartitions is: %v", groupTopicPartitions)
-			lcgor, err := e.admin.ListConsumerGroupOffsets(ctx, groupTopicPartitions, kafka.SetAdminRequireStableOffsets(true))
+			lcgor, err := e.admin.ListConsumerGroupOffsets(ctx, groupTopicPartitions, kafka.SetAdminRequireStableOffsets(false))
 			if err != nil {
 				return errors.Wrapf(err, "unable to list consumer groups offsets %v", groupTopicPartitions)
 			}
 			for _, res := range lcgor.ConsumerGroupsTopicPartitions {
 				log.Infof("consumer group topic paritions is %v", res.String())
-				e.writer.OffsetWrite(res)
+				err := e.writer.OffsetWrite(res)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

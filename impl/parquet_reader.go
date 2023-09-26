@@ -2,6 +2,7 @@ package impl
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -211,11 +212,11 @@ func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafk
 	if len(offsetMessages) > 0 {
 		for _, offsetMessage := range offsetMessages {
 			var topicPartition kafka.TopicPartition
-			kafkaOffset := &topicPartition.Offset
-			err := kafkaOffset.Set(offsetMessage.Offset)
+			offset, err := modifyOffset(offsetMessage.Offset)
 			if err != nil {
 				return nil, errors.Wrapf(err, "Failed to set offset during consumer offset restore: %s", offsetMessage.Offset)
 			}
+			topicPartition.Offset = offset
 			topicPartition.Partition = offsetMessage.Partition
 			topicPartition.Topic = &offsetMessage.Topic
 			if val, ok := groupIDToPartitions[offsetMessage.GroupID]; !ok {
@@ -239,4 +240,30 @@ func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafk
 	}
 
 	return res, nil
+}
+
+func modifyOffset(offset string) (kafka.Offset, error) {
+	switch offset {
+	case "beginning":
+		fallthrough
+	case "earliest":
+		return kafka.Offset(kafka.OffsetBeginning), nil
+
+	case "end":
+		fallthrough
+	case "latest":
+		return kafka.Offset(kafka.OffsetEnd), nil
+
+	case "unset":
+		fallthrough
+	case "invalid":
+		return kafka.Offset(kafka.OffsetInvalid), nil
+
+	case "stored":
+		return kafka.Offset(kafka.OffsetStored), nil
+
+	default:
+		off, err := strconv.Atoi(offset)
+		return kafka.Offset(off + 1), err
+	}
 }
