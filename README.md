@@ -21,6 +21,7 @@ Usage:
 
 Flags:
       --concurrent-consumers int                  Number of concurrent consumers (default 1)
+      --enable-auto-offset-store                  To store offset in kafka broker (default true)
       --fetch-message-max-bytes int               Maximum number of bytes per topic+partition to request when fetching messages from the broker. (default 1048576)
   -f, --file string                               Output file path (required)
       --gcs-bucket string                         Google Cloud Storage bucket name
@@ -37,10 +38,10 @@ Flags:
       --limit uint                                Supports file splitting. Files are split by the number of messages specified
       --max-waiting-seconds-for-new-message int   Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever. (default 30)
       --queued-max-messages-kbytes int            Maximum number of kilobytes per topic+partition in the local consumer queue. This value may be overshot by fetch.message.max.bytes (default 128000)
-      --ssl-ca-location string                    location of client ca cert file in pem
-      --ssl-certificate-location string           client's certificate location
-      --ssl-key-location string                   path to ssl private key
-      --ssl-key-password string                   password for ssl private key passphrase
+      --ssl-ca-location string                    Location of client ca cert file in pem
+      --ssl-certificate-location string           Client certificate location
+      --ssl-key-location string                   Path to ssl private key
+      --ssl-key-password string                   Password for ssl private key passphrase
       --storage string                            Storage type: local file (file) or Google cloud storage (gcs) (default "file")
 
 Global Flags:
@@ -73,10 +74,10 @@ kafka-dump export \
 --kafka-username=admin \
 --kafka-password=admin \
 --kafka-security-protocol=SSL \
---kafka-sasl-mechanism=PLAIN
---ssl-ca-location=<path to ssl cacert>
---ssl-certificate-location=<path to ssl cert>
---ssl-key-location=<path to ssl key>
+--kafka-sasl-mechanism=PLAIN \
+--ssl-ca-location=<path to ssl cacert> \
+--ssl-certificate-location=<path to ssl cert> \
+--ssl-key-location=<path to ssl key> \
 --ssl-key-password=<ssl key password>
 ```
 
@@ -88,16 +89,16 @@ Usage:
 Flags:
   -f, --file string                       Output file path (required)
   -h, --help                              help for import
-  -i, --include-partition-and-offset      to store partition and offset of kafka message in file
+  -i, --include-partition-and-offset      To store partition and offset of kafka message in file
       --kafka-password string             Kafka password
       --kafka-sasl-mechanism string       Kafka password
       --kafka-security-protocol string    Kafka security protocol
       --kafka-servers string              Kafka servers string
       --kafka-username string             Kafka username
-      --ssl-ca-location string            location of client ca cert file in pem
-      --ssl-certificate-location string   client's certificate location
-      --ssl-key-location string           path to ssl private key
-      --ssl-key-password string           password for ssl private key passphrase
+      --ssl-ca-location string            Location of client ca cert file in pem
+      --ssl-certificate-location string   Client certificate location
+      --ssl-key-location string           Path to ssl private key
+      --ssl-key-password string           Password for ssl private key passphrase
 
 Global Flags:
       --log-level string   Log level (default "info")
@@ -123,10 +124,26 @@ kafka-dump import \
 --kafka-username=admin \
 --kafka-password=admin \
 --kafka-security-protocol=SSL \
---kafka-sasl-mechanism=PLAIN
---ssl-ca-location=<path to ssl cacert>
---ssl-certificate-location=<path to ssl cert>
---ssl-key-location=<path to ssl key>
+--kafka-sasl-mechanism=PLAIN \
+--ssl-ca-location=<path to ssl cacert> \
+--ssl-certificate-location=<path to ssl cert> \
+--ssl-key-location=<path to ssl key> \
+--ssl-key-password=<ssl key password>
+```
+
+- In order to produce data in the internal topics of Kafka cluster (for eg. "__consumer_offsets"), the client id of the producer needs to be configured as `__admin_client`.
+```shell
+kafka-dump import \
+--file=path/to/input/data.parquet \
+--kafka-servers=localhost:9092 \
+--kafka-username=admin \
+--kafka-password=admin \
+--kafka-security-protocol=SSL \
+--kafka-sasl-mechanism=PLAIN \
+--client-id=__admin_client \
+--ssl-ca-location=<path to ssl cacert> \
+--ssl-certificate-location=<path to ssl cert> \
+--ssl-key-location=<path to ssl key> \
 --ssl-key-password=<ssl key password>
 ```
 

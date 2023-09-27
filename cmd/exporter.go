@@ -18,7 +18,8 @@ import (
 )
 
 func CreateExportCommand() (*cobra.Command, error) {
-	var filePath string
+	var messageFilePath string
+	var offsetFilePath string
 	var kafkaServers string
 	var kafkaUsername string
 	var kafkaPassword string
@@ -58,6 +59,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 				SSLCertLocation:       sslCertLocation,
 				EnableAutoOffsetStore: enableAutoOffsetStore,
 			}
+			adminClient, err := kafka_utils.NewAdminClient(kafkaConsumerConfig)
+			if err != nil {
+				panic(errors.Wrap(err, "Unable to init admin client"))
+			}
+
 			consumer, err := kafka_utils.NewConsumer(kafkaConsumerConfig)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to init consumer"))
@@ -74,12 +80,12 @@ func CreateExportCommand() (*cobra.Command, error) {
 				go func(workerID int) {
 					defer wg.Done()
 					for {
-						outputFilePath := filePath
+						outputFilePath := messageFilePath
 						if exportLimitPerFile > 0 {
-							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
+							outputFilePath = fmt.Sprintf("%s.%d", messageFilePath, time.Now().UnixMilli())
 						}
 						log.Infof("[Worker-%d] Exporting to: %s", workerID, outputFilePath)
-						fileWriter, err := createParquetFileWriter(
+						messageFileWriter, err := createParquetFileWriter(
 							Storage(storageType),
 							outputFilePath,
 							gcs_utils.Config{
@@ -91,11 +97,24 @@ func CreateExportCommand() (*cobra.Command, error) {
 						if err != nil {
 							panic(errors.Wrap(err, "[NewLocalFileWriter]"))
 						}
-						parquetWriter, err := impl.NewParquetWriter(*fileWriter)
+						offsetsFilePath := offsetFilePath
+						offsetFileWriter, err := createParquetFileWriter(
+							Storage(storageType),
+							offsetsFilePath,
+							gcs_utils.Config{
+								ProjectId:       gcsProjectID,
+								BucketName:      gcsBucketName,
+								CredentialsFile: googleCredentialsFile,
+							},
+						)
+						if err != nil {
+							panic(errors.Wrap(err, "[NewLocalFileWriter]"))
+						}
+						parquetWriter, err := impl.NewParquetWriter(*messageFileWriter, *offsetFileWriter)
 						if err != nil {
 							panic(errors.Wrap(err, "Unable to init parquet file writer"))
 						}
-						exporter, err := impl.NewExporter(consumer, *topics, parquetWriter, options)
+						exporter, err := impl.NewExporter(adminClient, consumer, *topics, parquetWriter, options)
 						if err != nil {
 							panic(errors.Wrap(err, "Failed to init exporter"))
 						}
@@ -116,7 +135,8 @@ func CreateExportCommand() (*cobra.Command, error) {
 		},
 	}
 	command.Flags().StringVar(&storageType, "storage", "file", "Storage type: local file (file) or Google cloud storage (gcs)")
-	command.Flags().StringVarP(&filePath, "file", "f", "", "Output file path (required)")
+	command.Flags().StringVarP(&messageFilePath, "file", "f", "", "Output file path for storing message (required)")
+	command.Flags().StringVarP(&offsetFilePath, "offset-file", "o", "", "Output file path for storing offset (required)")
 	command.Flags().StringVar(&googleCredentialsFile, "google-credentials", "", "Path to Google Credentials file")
 	command.Flags().StringVar(&gcsBucketName, "gcs-bucket", "", "Google Cloud Storage bucket name")
 	command.Flags().StringVar(&gcsProjectID, "gcs-project-id", "", "Google Cloud Storage Project ID")
@@ -124,11 +144,11 @@ func CreateExportCommand() (*cobra.Command, error) {
 	command.Flags().StringVar(&kafkaUsername, "kafka-username", "", "Kafka username")
 	command.Flags().StringVar(&kafkaPassword, "kafka-password", "", "Kafka password")
 	command.Flags().StringVar(&kafkaSASKMechanism, "kafka-sasl-mechanism", "", "Kafka password")
-	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "location of client ca cert file in pem")
-	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "password for ssl private key passphrase")
-	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "client's certificate location")
-	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
-	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "to store offset in kafka broker")
+	command.Flags().StringVar(&sslCaLocation, "ssl-ca-location", "", "Location of client ca cert file in pem")
+	command.Flags().StringVar(&sslKeyPassword, "ssl-key-password", "", "Password for ssl private key passphrase")
+	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "Client's certificate location")
+	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "Path to ssl private key")
+	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "To store offset in kafka broker")
 	command.Flags().StringVar(&kafkaSecurityProtocol, "kafka-security-protocol", "", "Kafka security protocol")
 	command.Flags().StringVar(&kafkaGroupID, "kafka-group-id", "", "Kafka consumer group ID")
 	command.Flags().Uint64Var(&exportLimitPerFile, "limit", 0, "Supports file splitting. Files are split by the number of messages specified")
@@ -140,6 +160,10 @@ func CreateExportCommand() (*cobra.Command, error) {
 	command.MarkFlagsRequiredTogether("kafka-username", "kafka-password", "kafka-sasl-mechanism", "kafka-security-protocol")
 	command.MarkFlagsRequiredTogether("google-credentials", "gcs-bucket", "gcs-project-id")
 	err := command.MarkFlagRequired("file")
+	if err != nil {
+		return nil, err
+	}
+	err = command.MarkFlagRequired("offset-file")
 	if err != nil {
 		return nil, err
 	}

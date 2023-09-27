@@ -2,6 +2,7 @@ package kafka_utils
 
 type Config struct {
 	BootstrapServers          string `json:"bootstrap_servers" mapstructure:"bootstrap_servers"`
+	ClientID                  string `json:"client_id" mapstructure:"client_id"`
 	SecurityProtocol          string `json:"security_protocol" mapstructure:"security_protocol"`
 	SASLMechanism             string `json:"sasl_mechanism" mapstructure:"sasl_mechanism"`
 	SASLUsername              string `json:"sasl_username" mapstructure:"sasl_username"`
