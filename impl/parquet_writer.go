@@ -50,10 +50,23 @@ type KafkaMessage struct {
 }
 
 type OffsetMessage struct {
-	GroupID   string `parquet:"name=groupid, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	Topic     string `parquet:"name=topic, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	Partition int32  `parquet:"name=partition, type=INT32, convertedtype=INT_32"`
-	Offset    string `parquet:"name=offset, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	GroupID             string `parquet:"name=groupid, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Topic               string `parquet:"name=topic, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	Partition           int32  `parquet:"name=partition, type=INT32, convertedtype=INT_32"`
+	Offset              string `parquet:"name=offset, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
+	WatermarkOffsetLow  int64  `parquet:"name=watermarklow, type=INT64, convertedtype=INT_64"`
+	WatermarkOffsetHigh int64  `parquet:"name=watermakehigh, type=INT64, convertedtype=INT_64"`
+}
+
+type kafkaTopicPartition struct {
+	kafka.TopicPartition
+	WOH int64
+	WOL int64
+}
+
+type kafkaOffsetMessage struct {
+	Group                string
+	KafkaTopicPartitions []kafkaTopicPartition
 }
 
 func (f *ParquetWriter) Write(msg kafka.Message) (err error) {
@@ -80,13 +93,15 @@ func (f *ParquetWriter) Write(msg kafka.Message) (err error) {
 	return err
 }
 
-func (f *ParquetWriter) OffsetWrite(msg kafka.ConsumerGroupTopicPartitions) (err error) {
-	for _, partition := range msg.Partitions {
+func (f *ParquetWriter) OffsetWrite(msg kafkaOffsetMessage) (err error) {
+	for _, partition := range msg.KafkaTopicPartitions {
 		message := OffsetMessage{
-			GroupID:   msg.Group,
-			Topic:     *partition.Topic,
-			Partition: partition.Partition,
-			Offset:    partition.Offset.String(),
+			GroupID:             msg.Group,
+			Topic:               *partition.Topic,
+			Partition:           partition.Partition,
+			Offset:              partition.Offset.String(),
+			WatermarkOffsetLow:  partition.WOL,
+			WatermarkOffsetHigh: partition.WOH,
 		}
 
 		err = f.parquetWriterOffset.Write(message)

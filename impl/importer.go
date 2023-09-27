@@ -50,12 +50,13 @@ func NewImporter(log log.Logger, producer *kafka.Producer, deliveryChan chan kaf
 }
 
 type Reader interface {
-	ReadMessage(restoreBefore, restoreAfter time.Time) chan kafka.Message
-	ReadOffset() chan kafka.ConsumerGroupTopicPartitions
+	ReadMessage(time.Time, time.Time, chan int) chan kafka.Message
+	ReadOffset(chan int) chan kafka.ConsumerGroupTopicPartitions
 }
 
 func (i *Importer) Run(cfg kafka_utils.Config) error {
 	cx := make(chan os.Signal, 1)
+	doneChan := make(chan int)
 	signal.Notify(cx, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-cx
@@ -65,8 +66,8 @@ func (i *Importer) Run(cfg kafka_utils.Config) error {
 	defer func() {
 		i.producer.Flush(30 * 1000)
 	}()
-	offsetChan := i.reader.ReadOffset()
-	messageChn := i.reader.ReadMessage(i.restoreBefore, i.restoreAfter)
+	messageChn := i.reader.ReadMessage(i.restoreBefore, i.restoreAfter, doneChan)
+	offsetChan := i.reader.ReadOffset(doneChan)
 
 	for {
 		select {
@@ -90,7 +91,11 @@ func (i *Importer) Run(cfg kafka_utils.Config) error {
 			}
 			res, err := consumer.CommitOffsets(offsetMessage.Partitions)
 			if err != nil {
-				panic(errors.Wrap(err, "Unable to restore offsets of consumer"))
+				if kafkaErr, ok := err.(kafka.Error); ok && kafkaErr.Code() == kafka.ErrNoOffset {
+					log.Warnf("No offset, it can happen when there is no messages have been consumed, error is: %v", err)
+				} else {
+					panic(errors.Wrap(err, "Unable to restore offsets of consumer"))
+				}
 			}
 			i.logger.Infof("final result of commit offsets is: %v", res)
 			consumer.Close()

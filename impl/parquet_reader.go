@@ -56,7 +56,7 @@ func NewParquetReader(filePathMessage, filePathOffset string, includePartitionAn
 
 const batchSize = 10
 
-func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time) chan kafka.Message {
+func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time, doneChan chan int) chan kafka.Message {
 	ch := make(chan kafka.Message, batchSize)
 	if p.parquetReaderMessage == nil {
 		return ch
@@ -90,11 +90,14 @@ func (p *ParquetReader) ReadMessage(restoreBefore, restoreAfter time.Time) chan 
 			panic(errors.Wrap(err, "Failed to close fileReader"))
 		}
 		close(ch)
+		doneChan <- 0
+		close(doneChan)
+		log.Infof("kafka message restored successfully")
 	}()
 	return ch
 }
 
-func (p *ParquetReader) ReadOffset() chan kafka.ConsumerGroupTopicPartitions {
+func (p *ParquetReader) ReadOffset(doneChan chan int) chan kafka.ConsumerGroupTopicPartitions {
 	ch := make(chan kafka.ConsumerGroupTopicPartitions, batchSize)
 	// When offset file is not given
 	if p.parquetReaderOffset == nil {
@@ -106,34 +109,40 @@ func (p *ParquetReader) ReadOffset() chan kafka.ConsumerGroupTopicPartitions {
 	if rowNum == 0 {
 		return ch
 	}
-	go func() {
-		for i := 0; i < rowNum/batchSize+1; i++ {
-			offsetMessages := make([]OffsetMessage, batchSize)
-			if err := p.parquetReaderOffset.Read(&offsetMessages); err != nil {
-				err = errors.Wrap(err, "Failed to bulk read messages from parquet file")
-				panic(err)
-			}
+	go func(doneChan chan int) {
+		// wait for all the messages to be restore first, then
+		// restore the kafka consumer group offset
+		val := <-doneChan
+		if val == 0 {
+			for i := 0; i < rowNum/batchSize+1; i++ {
+				offsetMessages := make([]OffsetMessage, batchSize)
+				if err := p.parquetReaderOffset.Read(&offsetMessages); err != nil {
+					err = errors.Wrap(err, "Failed to bulk read messages from parquet file")
+					panic(err)
+				}
 
-			resMessages, err := toKafkaConsumerGroupTopicPartitions(offsetMessages)
+				resMessages, err := toKafkaConsumerGroupTopicPartitions(offsetMessages)
+				if err != nil {
+					err = errors.Wrapf(err, "Failed to parse offset messages from offset file")
+					panic(err)
+				}
+
+				for _, offsetMessage := range resMessages {
+					counter++
+					log.Infof("offset message is: %v", offsetMessage)
+					ch <- offsetMessage
+					log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
+				}
+			}
+			p.parquetReaderOffset.ReadStop()
+			err := p.fileReaderOffset.Close()
 			if err != nil {
-				err = errors.Wrapf(err, "Failed to parse offset messages from offset file")
-				panic(err)
+				panic(errors.Wrap(err, "Failed to close fileReader"))
 			}
-
-			for _, offsetMessage := range resMessages {
-				counter++
-				log.Infof("offset message is: %v", offsetMessage)
-				ch <- offsetMessage
-				log.Infof("Loaded %f% (%d/%d)", counter/rowNum, counter, rowNum)
-			}
+			close(ch)
+			log.Infof("consumer offset restored successfully")
 		}
-		p.parquetReaderOffset.ReadStop()
-		err := p.fileReaderOffset.Close()
-		if err != nil {
-			panic(errors.Wrap(err, "Failed to close fileReader"))
-		}
-		close(ch)
-	}()
+	}(doneChan)
 	return ch
 }
 
@@ -212,7 +221,7 @@ func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafk
 	if len(offsetMessages) > 0 {
 		for _, offsetMessage := range offsetMessages {
 			var topicPartition kafka.TopicPartition
-			offset, err := modifyOffset(offsetMessage.Offset)
+			offset, err := modifyOffset(offsetMessage)
 			if err != nil {
 				return nil, errors.Wrapf(err, "Failed to set offset during consumer offset restore: %s", offsetMessage.Offset)
 			}
@@ -242,8 +251,8 @@ func toKafkaConsumerGroupTopicPartitions(offsetMessages []OffsetMessage) ([]kafk
 	return res, nil
 }
 
-func modifyOffset(offset string) (kafka.Offset, error) {
-	switch offset {
+func modifyOffset(OM OffsetMessage) (kafka.Offset, error) {
+	switch OM.Offset {
 	case "beginning":
 		fallthrough
 	case "earliest":
@@ -263,7 +272,10 @@ func modifyOffset(offset string) (kafka.Offset, error) {
 		return kafka.Offset(kafka.OffsetStored), nil
 
 	default:
-		off, err := strconv.Atoi(offset)
+		off, err := strconv.Atoi(OM.Offset)
+		if off == int(OM.WatermarkOffsetHigh) {
+			return kafka.Offset(off), err
+		}
 		return kafka.Offset(off + 1), err
 	}
 }
