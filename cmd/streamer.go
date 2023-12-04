@@ -34,32 +34,32 @@ func CreateStreamCmd() (*cobra.Command, error) {
 		Use: "stream",
 		Run: func(cmd *cobra.Command, args []string) {
 			kafkaConsumerConfig := kafka_utils.Config{
-				BootstrapServers: fromKafkaServers,
-				SecurityProtocol: fromKafkaSecurityProtocol,
-				SASLMechanism:    fromKafkaSASKMechanism,
-				SASLUsername:     fromKafkaUsername,
-				SASLPassword:     fromKafkaPassword,
-				GroupId:          fromKafkaGroupID,
+				BootstrapServers:      fromKafkaServers,
+				SecurityProtocol:      fromKafkaSecurityProtocol,
+				SASLMechanism:         fromKafkaSASKMechanism,
+				SASLUsername:          fromKafkaUsername,
+				SASLPassword:          fromKafkaPassword,
+				GroupId:               fromKafkaGroupID,
+				EnableAutoOffsetStore: enableAutoOffsetStore,
 			}
 			consumer, err := kafka_utils.NewConsumer(kafkaConsumerConfig)
 			if err != nil {
 				panic(err)
 			}
 			kafkaProducerConfig := kafka_utils.Config{
-				BootstrapServers:      toKafkaServers,
-				SecurityProtocol:      toKafkaSecurityProtocol,
-				SASLMechanism:         toKafkaSASKMechanism,
-				SASLUsername:          toKafkaUsername,
-				SASLPassword:          toKafkaPassword,
-				EnableAutoOffsetStore: enableAutoOffsetStore,
-			}
-			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
-			if err != nil {
-				panic(err)
+				BootstrapServers: toKafkaServers,
+				SecurityProtocol: toKafkaSecurityProtocol,
+				SASLMechanism:    toKafkaSASKMechanism,
+				SASLUsername:     toKafkaUsername,
+				SASLPassword:     toKafkaPassword,
 			}
 			queueBufferingMaxMessages := kafka_utils.DefaultQueueBufferingMaxMessages
 			if kafkaProducerConfig.QueueBufferingMaxMessages > 0 {
 				queueBufferingMaxMessages = kafkaProducerConfig.QueueBufferingMaxMessages
+			}
+			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
+			if err != nil {
+				panic(err)
 			}
 			deliveryChan := make(chan kafka.Event, queueBufferingMaxMessages)
 			go func() { // Tricky: kafka require specific deliveryChan to use Flush function
