@@ -7,7 +7,6 @@ import (
 	"github.com/huantt/kafka-dump/pkg/kafka_utils"
 	"github.com/huantt/kafka-dump/pkg/log"
 	"github.com/spf13/cobra"
-	"log/slog"
 	"time"
 )
 
@@ -86,7 +85,7 @@ func CreateStreamCmd() (*cobra.Command, error) {
 			)
 			transferredCount, err := streamer.Run()
 			if err != nil {
-				slog.Error(err.Error())
+				log.Error(err.Error())
 				return
 			}
 			log.Infof("Transferred %d messages from %s to %s", transferredCount, fromTopic, toTopic)
