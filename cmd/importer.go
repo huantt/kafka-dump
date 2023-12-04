@@ -23,6 +23,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var sslCertLocation string
 	var sslKeyLocation string
 	var includePartitionAndOffset bool
+	var enableAutoOffsetStore = true
 
 	command := cobra.Command{
 		Use: "import",
@@ -47,7 +48,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 				SSLKeyLocation:            sslKeyLocation,
 				SSLCertLocation:           sslCertLocation,
 				SSLKeyPassword:            sslKeyPassword,
-				EnableAutoOffsetStore:     false,
+				EnableAutoOffsetStore:     enableAutoOffsetStore,
 			}
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
 			if err != nil {
@@ -88,5 +89,6 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&sslCertLocation, "ssl-certificate-location", "", "client's certificate location")
 	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
 	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "to store partition and offset of kafka message in file")
+	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "to store offset in kafka broker")
 	return &command, nil
 }

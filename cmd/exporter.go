@@ -39,7 +39,7 @@ func CreateExportCommand() (*cobra.Command, error) {
 	var sslKeyPassword string
 	var sslCertLocation string
 	var sslKeyLocation string
-	var enableAutoOffsetStore bool
+	var enableAutoOffsetStore = true
 
 	command := cobra.Command{
 		Use: "export",

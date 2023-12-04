@@ -28,6 +28,7 @@ func CreateStreamCmd() (*cobra.Command, error) {
 	var toTopic string
 
 	var maxWaitingSecondsForNewMessage int
+	var enableAutoOffsetStore = true
 
 	command := cobra.Command{
 		Use: "stream",
@@ -45,11 +46,12 @@ func CreateStreamCmd() (*cobra.Command, error) {
 				panic(err)
 			}
 			kafkaProducerConfig := kafka_utils.Config{
-				BootstrapServers: fromKafkaServers,
-				SecurityProtocol: fromKafkaSecurityProtocol,
-				SASLMechanism:    fromKafkaSASKMechanism,
-				SASLUsername:     fromKafkaUsername,
-				SASLPassword:     fromKafkaPassword,
+				BootstrapServers:      toKafkaServers,
+				SecurityProtocol:      toKafkaSecurityProtocol,
+				SASLMechanism:         toKafkaSASKMechanism,
+				SASLUsername:          toKafkaUsername,
+				SASLPassword:          toKafkaPassword,
+				EnableAutoOffsetStore: enableAutoOffsetStore,
 			}
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
 			if err != nil {
@@ -105,6 +107,7 @@ func CreateStreamCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&toKafkaSASKMechanism, "to-kafka-sasl-mechanism", "", "Destination Kafka password")
 	command.Flags().StringVar(&toKafkaSecurityProtocol, "to-kafka-security-protocol", "", "Destination Kafka security protocol")
 	command.Flags().StringVar(&toTopic, "to-topic", "", "Destination topic")
+	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "to store offset in kafka broker")
 
 	command.Flags().IntVar(&maxWaitingSecondsForNewMessage, "max-waiting-seconds-for-new-message", 30, "Max waiting seconds for new message, then this process will be marked as finish. Set -1 to wait forever.")
 
