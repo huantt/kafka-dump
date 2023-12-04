@@ -71,14 +71,17 @@ func CreateStreamCmd() (*cobra.Command, error) {
 					}
 				}
 			}()
-			maxWaitingSecondsForNewMessage := time.Duration(10) * time.Second
+			maxWaitingDurationForNewMessage := time.Duration(-1)
+			if maxWaitingSecondsForNewMessage != -1 {
+				maxWaitingDurationForNewMessage = time.Duration(maxWaitingSecondsForNewMessage) * time.Second
+			}
 			streamer := impl.NewStreamer(
 				consumer,
 				producer,
 				fromTopic,
 				toTopic,
 				deliveryChan,
-				impl.StreamerOptions{MaxWaitingTimeForNewMessage: &maxWaitingSecondsForNewMessage},
+				impl.StreamerOptions{MaxWaitingTimeForNewMessage: &maxWaitingDurationForNewMessage},
 			)
 			transferredCount, err := streamer.Run()
 			if err != nil {
