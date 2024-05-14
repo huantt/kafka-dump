@@ -24,6 +24,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 	var sslKeyLocation string
 	var includePartitionAndOffset bool
 	var enableAutoOffsetStore = true
+	var queueBufferingMaxMessages int
 
 	command := cobra.Command{
 		Use: "import",
@@ -40,8 +41,7 @@ func CreateImportCmd() (*cobra.Command, error) {
 				SASLUsername:              kafkaUsername,
 				SASLPassword:              kafkaPassword,
 				ReadTimeoutSeconds:        0,
-				GroupId:                   "",
-				QueueBufferingMaxMessages: 0,
+				QueueBufferingMaxMessages: queueBufferingMaxMessages,
 				QueuedMaxMessagesKbytes:   0,
 				FetchMessageMaxBytes:      0,
 				SSLCALocation:             sslCaLocation,
@@ -53,10 +53,6 @@ func CreateImportCmd() (*cobra.Command, error) {
 			producer, err := kafka_utils.NewProducer(kafkaProducerConfig)
 			if err != nil {
 				panic(errors.Wrap(err, "Unable to create producer"))
-			}
-			queueBufferingMaxMessages := kafka_utils.DefaultQueueBufferingMaxMessages
-			if kafkaProducerConfig.QueueBufferingMaxMessages > 0 {
-				queueBufferingMaxMessages = kafkaProducerConfig.QueueBufferingMaxMessages
 			}
 			deliveryChan := make(chan kafka.Event, queueBufferingMaxMessages)
 			go func() { // Tricky: kafka require specific deliveryChan to use Flush function
@@ -90,5 +86,6 @@ func CreateImportCmd() (*cobra.Command, error) {
 	command.Flags().StringVar(&sslKeyLocation, "ssl-key-location", "", "path to ssl private key")
 	command.Flags().BoolVarP(&includePartitionAndOffset, "include-partition-and-offset", "i", false, "to store partition and offset of kafka message in file")
 	command.Flags().BoolVar(&enableAutoOffsetStore, "enable-auto-offset-store", true, "to store offset in kafka broker")
+	command.Flags().IntVar(&queueBufferingMaxMessages, "queue-buffering-max-messages", kafka_utils.DefaultQueueBufferingMaxMessages, "queue buffering max messages")
 	return &command, nil
 }

@@ -92,6 +92,7 @@ Flags:
   -f, --file string                       Output file path (required)
   -h, --help                              help for import
   -i, --include-partition-and-offset      to store partition and offset of kafka message in file
+      --queue-buffering-max-messages      queue buffering max messages (default 10000)
       --kafka-password string             Kafka password
       --kafka-sasl-mechanism string       Kafka password
       --kafka-security-protocol string    Kafka security protocol
