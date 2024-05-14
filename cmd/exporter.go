@@ -74,9 +74,9 @@ func CreateExportCommand() (*cobra.Command, error) {
 				go func(workerID int) {
 					defer wg.Done()
 					for {
-						outputFilePath := filePath
+						outputFilePath := fmt.Sprintf("%s.%d", filePath, workerID)
 						if exportLimitPerFile > 0 {
-							outputFilePath = fmt.Sprintf("%s.%d", filePath, time.Now().UnixMilli())
+							outputFilePath = fmt.Sprintf("%s.%d", outputFilePath, time.Now().UnixMilli())
 						}
 						log.Infof("[Worker-%d] Exporting to: %s", workerID, outputFilePath)
 						fileWriter, err := createParquetFileWriter(
